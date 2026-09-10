@@ -1,0 +1,377 @@
+# SO-ARM101 on PYNQ-Z2
+
+**13-week study plan · 10 Sep – 10 Dec 2026**[cite: 2]
+
+One capstone, worked end to end the way a senior hardware engineer would own it: requirements, architecture, RTL, a custom PCB, bring-up, characterisation, safety analysis, and a design review you can defend in an interview[cite: 2].
+
+| Budget | Rhythm | Gates | Output |
+|---|---|---|---|
+| ~12 h / week | 4 × 2 h weeknights + 4 h Saturday | W4 · W8 · W10 · W13 | Full design package |[cite: 2]
+
+Live page: https://claude.ai/code/artifact/566fe14c-fa43-47a2-8405-08c87fa4bba5[cite: 2]
+
+---
+
+## The capstone: an FPGA-native servo controller with hardware teleoperation[cite: 2]
+
+The SO-ARM101 ships driven by USB-to-serial adapters and a Python loop[cite: 2]. The PYNQ-Z2 replaces that path with hardware you design yourself[cite: 2]. By week 13 the pair of arms is driven by[cite: 2]:
+
+- **A two-bus TTL bus-master IP** in the Zynq-7020 programmable logic (PL), one bus for the leader and one for the follower, talking the half-duplex TTL protocol at 1 Mbps with an AXI-Lite register interface[cite: 2].
+- **A custom shield PCB** on the Arduino header: unified 12 V input architecture feeding independent load-switched follower and leader rails, dual bus drivers, high-side current sense, hardware e-stop, and a watchdog-held load switch[cite: 2].
+- **A hardware teleoperation loop** that reads the leader and writes the follower entirely in PL, with an HLS trajectory filter, so the Linux side can be slow and jittery without the arms noticing[cite: 2]. End-to-end latency is measured against the USB path[cite: 2].
+- **An automated characterisation bench** built on the same SCPI/VISA instrument stack you already use for RF ATE, with the spare OBSBOT camera as an independent optical measurement of the follower, producing a per-joint datasheet[cite: 2].
+- **An FMEA and fault-injection results** with measured reaction times[cite: 2].
+- **A LeRobot dataset and policy** recorded with the wrist camera and the OBSBOT, trained on a PC, and run against your overlay as the actuator backend[cite: 2].
+
+Why this project maps to a senior role: every week produces a document or artifact that a reviewer could pick apart[cite: 2]. Senior engineers are judged on requirements ownership, trade-off reasoning, verification depth, bring-up discipline and the ability to run a review, not on whether the arm moves[cite: 2].
+
+**Assumptions**[cite: 2]
+
+- Hardware in hand: Hiwonder SO-ARM101 kit featuring 12 V bus servos across both arms: follower (6 × HX-30HM 12 V) and leader (6 × HX-10HM 12 V), follower wrist camera, spare OBSBOT camera, and PYNQ-Z2[cite: 2].
+- Power architecture: Single 12 V 5 A DC supply feeding both arms in parallel (via BusLinker screw terminal passthrough or bench supply with current limits); no step-down buck converter is required to protect the leader servos[cite: 2].
+- Toolchain: PYNQ v3.1.1 image, built on the 2024.1 toolchain, with Vivado and Vitis (HLS) 2026.1[cite: 2]. Custom overlays build cleanly on a newer Vivado than the image; only a rebuild of the base overlay itself needs its IP cores upgraded[cite: 2].
+- Windows 11 host; Vivado runs natively, cocotb runs under WSL2 or natively with Icarus[cite: 2].
+
+**Senior-level thread:** each week names the competency being exercised[cite: 2]. By the end you should be able to tell a concrete story for every row in the competency matrix[cite: 2].
+
+---
+
+## Week 0: Setup before the clock starts[cite: 2]
+
+**Order & Inventory**[cite: 2]
+
+- Already in hand: Hiwonder follower arm (HX-30HM), Hiwonder leader arm (HX-10HM), wrist camera, OBSBOT, PYNQ-Z2, 12 V 5 A DC supply (DC 4.0×1.7)[cite: 2]. Confirm servo side labels indicate 11.1V/12V operation.
+- 32 GB microSD (A1 class), Ethernet cable, 2 A USB supply for the PYNQ-Z2, and a powered USB hub: the board has one USB 2.0 host port and you will hang two cameras off it[cite: 2].
+- Two 74LVC1G125 or SN74LVC1T45 breakouts (one per bus), INA226 breakout, a mushroom e-stop switch, XT30 or barrel connectors, breadboard, jumper wires, spare 12 V bus servo[cite: 2].
+
+**Install**[cite: 2]
+
+- PYNQ v3.1.1 image[cite: 2]. Vivado and Vitis (HLS) 2026.1, Basic tier, which is free for the 7Z020; expect a 100 GB-class install on a local drive[cite: 2].
+- KiCad 8 or newer with the JLCPCB/LCSC library plugin[cite: 2].
+- Python 3.11 venv: `lerobot`, `pyserial`, `cocotb`, `pytest`, `pyvisa`, `opencv-python`, `numpy`, `matplotlib`[cite: 2]. Icarus Verilog or Verilator[cite: 2].
+- Git repo `arm-on-zynq` with folders `docs/ hw/ rtl/ overlay/ sw/ test/`[cite: 2]. Everything below lands here[cite: 2].
+
+---
+
+## Month 1 · Foundations: know both boards better than their vendors expect[cite: 2]
+
+### W01 · PYNQ-Z2 bring-up and the Zynq PS/PL split (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Flash the v3.1.1 image, boot, connect over Ethernet, run the base-overlay notebooks: LEDs, buttons, switches, a Pmod[cite: 2]. Read the v3.1 changelog so you know what changed from older tutorials[cite: 2].
+- Read UG585 sections on the PS/PL AXI ports (GP, HP, ACP), FCLK clocking, and the boot flow[cite: 2]. Sketch the Zynq-7020 block diagram from memory at the end of the week[cite: 2].
+- Build your first custom overlay in Vivado 2026.1 *from a Tcl script, not GUI clicks*: AXI GPIO plus a free-running 32-bit counter exposed over AXI-Lite[cite: 2]. Export `.bit` and `.hwh`, load with `pynq.Overlay`, read the counter from Python[cite: 2]. Proves 2026.1 bitstream loads on the 2024.1-era image[cite: 2].
+- Plug the wrist camera into the board's USB port and grab a frame with OpenCV on the PS[cite: 2]. Note the resolution and frame rate you actually get[cite: 2].
+- Route the PL clock to a Pmod pin and look at it on the scope[cite: 2]. Note the FCLK frequency and the rise time you see at the pin[cite: 2].
+
+**Measure:** board current at idle vs. with the PL loaded[cite: 2]. PL clock frequency on the pin vs. what you set in the clocking wizard[cite: 2]. Camera frames per second at 640×480 on the PS[cite: 2].
+
+**Ship:** `overlay/hello`: scripted block design, XDC, README explaining how to rebuild from a clean checkout and which Vivado version it was proven on[cite: 2]. One page of PS/PL notes in `docs/`[cite: 2].
+
+**Senior skill:** SoC architecture literacy and reproducible builds[cite: 2].
+
+### W02 · Both arms running, then characterised before you trust them (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Set servo IDs 1–6 on each arm and 1 Mbps baud through the two Hiwonder BusLinker V3.0 adapters[cite: 2]. Wire 12 V power in parallel across the screw terminals while keeping 3-pin TTL servo lines strictly isolated between leader and follower. Run LeRobot calibration, teleoperate follower from leader, and record a two-minute dataset with the wrist camera and OBSBOT[cite: 2].
+- Power both arms from a bench supply at 12 V with current limits set[cite: 2]. Log follower current (HX-30HM) at idle, holding under gravity load on joint 2, fast move, and stalled against a soft stop[cite: 2]. Log leader current (HX-10HM) at idle and while being back-driven by hand[cite: 2].
+- Scope both bus lines at the last servo in each chain: capture one packet, measure 1 µs bit period, rise/fall times, and the turnaround gap between master and servo[cite: 2].
+- Note mechanical state: backlash at the gripper, joint sag with torque off, back-drive resistance on the HX-10HM leader vs. hold stiffness on the HX-30HM follower[cite: 2].
+
+**Measure:** current tables for both 12 V arms[cite: 2]. Bus edge times and ringing amplitude at the end of each chain[cite: 2]. Feeds W4's power budget and W7's rail and driver choices[cite: 2].
+
+**Ship:** `docs/arm-bringup.md` with photos and servo ID maps[cite: 2]. `docs/servo-power-and-bus-report.md`, two pages with scope shots and current tables[cite: 2].
+
+**Senior skill:** lab measurement discipline[cite: 2].
+
+### W03 · The bus protocol, from logic analyser to your own driver (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Capture LeRobot teleop traffic on both buses with a logic analyser (UART decoder at 1 Mbps)[cite: 2]. Identify frame structure: `FF FF` header, ID, length, instruction, parameters, checksum[cite: 2]. Identify PING, READ, WRITE, and SYNC WRITE[cite: 2].
+- Write a clean-room driver with pyserial: ping, read/write registers, sync-write goal positions to six IDs, checksum verification, timeouts[cite: 2]. Confirm register map across HX-10HM and HX-30HM (Torque_Enable at 40, Goal_Position at 42, Present_Position at 56, plus load, current, and temperature registers)[cite: 2].
+- Measure round-trip latency of a single Present_Position read through the USB path over 1,000 samples and plot the histogram[cite: 2].
+- Measure end-to-end teleop latency through the USB path: tap a leader joint and time the follower's response on the scope using both bus lines[cite: 2]. Baseline for the PL path to beat[cite: 2].
+- Write the spec as if you were the vendor: framing, timing, turnaround limits, error bits, examples[cite: 2].
+
+**Measure:** latency histogram of the USB path (median, p99, max)[cite: 2]. Leader-to-follower teleop latency through two adapters and Python[cite: 2]. Bytes on the wire per servo per loop iteration[cite: 2].
+
+**Ship:** `sw/feetech_min/` driver with unit tests[cite: 2]. `docs/sts3215-bus-spec.md` v1[cite: 2]. A one-page teleop latency baseline[cite: 2].
+
+**Senior skill:** writing an interface spec others can build against, and measuring before asserting[cite: 2].
+
+### W04 · Requirements, architecture and your first design review (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Write numbered requirements with verification methods[cite: 2]. Bus budget: at 1 Mbps a byte costs 10 µs[cite: 2]. Follower sync-write ~26 bytes (260 µs)[cite: 2]. Six leader reads (position, speed, load) = 6 × ~300 µs = 1.8 ms[cite: 2]. Target loop rate: 250 Hz on both with margin[cite: 2]. Set leader-to-follower teleop latency requirement below W3 baseline[cite: 2].
+- Power budget from W2: six follower servos (HX-30HM) at stall on 12 V, six leader servos (HX-10HM) dynamic draw on 12 V, combined fuse rating with derating, bulk capacitance for stall transients, connector current ratings[cite: 2].
+- Camera budget: profile single USB 2.0 host port limits (MJPEG at 640×480 @ 30 fps fits; raw YUY2 does not)[cite: 2]. Partition PS vs. PL processing tasks[cite: 2].
+- Architecture block diagram: PS (Linux, PYNQ, V4L2) ↔ AXI-Lite ↔ two-bus bus-master IP ↔ shield drivers ↔ leader and follower chains; unified 12 V input with dual independent load switches and high-side current sense (INA226); hardware e-stop and PL watchdog; PL teleop path bypassing PS[cite: 2].
+- Interface control document: IP register map v0.1, Arduino-header pin assignment, keyed servo connector pinouts[cite: 2].
+- Risk register (top risk: PCB fab lead time), schedule with W8 fab release on critical path, and decision records (why 4-layer, why unified 12 V rail with dual load switches vs. step-down buck, why INA226 vs XADC, why PL watchdog)[cite: 2].
+- Hold self-review against a written checklist[cite: 2].
+
+**Ship:** `docs/requirements.md`, `docs/architecture.md` with diagram, `docs/icd.md` v0.1, `docs/risks.md`, `docs/decisions/`, review minutes[cite: 2].
+
+**Senior skill:** owning requirements and architecture[cite: 2].
+
+> **Gate 1.** Architecture approved by your own review[cite: 2]. Loop-rate, latency, camera bandwidth, and 12 V dual-rail power targets defended with W1–W3 measurements[cite: 2].
+
+---
+
+## Month 2 · Build: RTL, verification, and a board of your own[cite: 2]
+
+### W05 · RTL: half-duplex UART and the packet engine (14 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- SystemVerilog modules: baud generator (1 Mbps from 100 MHz PL clock), transmitter with direction output for bus buffer, receiver with mid-bit majority sampling, packet framer, response parser with timeout counter, and TX/RX FIFOs behind AXI-Lite registers[cite: 2].
+- Parameterise top level for N buses; instantiate two independent bus engines (leader and follower) behind one register map[cite: 2]. Keep bus logic in the AXI clock domain to avoid CDC[cite: 2].
+- Verification in cocotb: behavioural servo model answering reads, verifying checksums, simulating timeouts[cite: 2]. Tests for framing, checksum errors, timeouts, back-to-back sync-writes, FIFO overflow, concurrent bus operations[cite: 2]. Record functional coverage[cite: 2].
+- Lint with Verilator and fix every unjustified warning[cite: 2].
+
+**Measure:** coverage percentage, test count, simulated turnaround time between last TX stop bit and direction pin release[cite: 2].
+
+**Ship:** `rtl/feetech_bus_master/` with timing diagram in README, `test/cocotb/` suite, coverage summary[cite: 2].
+
+**Senior skill:** RTL implementation and verification discipline[cite: 2].
+
+### W06 · Overlay integration, constraints, timing and on-chip debug (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Package IP, connect to AXI interconnect in block design, constrain TX, RX, and DIR for both buses to Arduino-header pins in XDC, close timing cleanly[cite: 2].
+- PYNQ driver: subclass `DefaultIP`, bind by VLNV, expose `read_reg`, `write_reg`, and `sync_write_positions` with a bus index parameter[cite: 2]. Reuse W3 unit tests[cite: 2].
+- Insert ILA on bus signals, capture real transaction, compare with scope, verify bus turnaround timing[cite: 2].
+- Breadboard two 74LVC1G125 buffers as interim bus drivers; power both arms from 12 V bench supply[cite: 2]. Move follower servos via PL sync-write, read leader, and run Python teleop loop on PS over PL IP[cite: 2].
+
+**Measure:** post-route utilisation and WNS[cite: 2]. Read round-trip latency through PL vs. W3 USB histogram[cite: 2]. Teleop latency with PS in loop vs. W3 baseline[cite: 2].
+
+**Ship:** `overlay/v0.1` driving both arms via PL, ILA captures in `docs/`, timing report, ICD v0.2[cite: 2].
+
+**Senior skill:** FPGA integration, timing closure, on-chip instrumentation[cite: 2].
+
+### W07 · Shield schematic in KiCad (14 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- **Power path:** Single 12 V input connector (barrel jack and XT30), reverse-polarity P-FET, inrush limiting, main fuse sized from W4 budget, bulk capacitance, TVS diode[cite: 2]. Dual load switches feeding the follower and leader rails independently on the 12 V plane[cite: 2].
+- **Servo buses:** Two 3.3 V tri-state buffers with PL direction control, series resistors at drivers, ESD protection diodes at connectors, separate daisy-chain headers for leader and follower[cite: 2]. Verify connector pitch against physical cables[cite: 2].
+- **Sense:** Dual high-side shunts with INA226 over I2C monitoring current and voltage on both the leader and follower 12 V rails[cite: 2]. NTC thermal sensor near main load switches, test points on all rails and buses[cite: 2].
+- **Safety:** Mushroom e-stop opens both load switches in hardware with no firmware in path[cite: 2]. PL watchdog output must toggle to hold switches on; hangs drop power to both arms[cite: 2].
+- Formal schematic review against checklist: decoupling, pull-ups, unused pins, ERC clean, verified component stock at LCSC[cite: 2].
+
+**Ship:** `hw/shield/` schematic PDF, BOM with alternates and derating notes, review minutes[cite: 2].
+
+**Senior skill:** part selection, derating, and design-for-safety[cite: 2].
+
+### W08 · Layout, DFM, release, and the bring-up plan (14 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Four-layer stack-up with solid ground on layer 2[cite: 2]. Keep high-current 12 V traces short and away from 1 Mbps TTL lines[cite: 2]. Kelvin connections and thermal relief for INA226 shunts[cite: 2]. Match Arduino-header outline while clearing PYNQ-Z2 Ethernet, USB, and HDMI jacks[cite: 2].
+- DRC against fab rules, DFM check, Gerbers, drill, pick-and-place, BOM export[cite: 2]. Order with SMD assembly[cite: 2].
+- Tag `rev-A` in git and open ECO tracker[cite: 2].
+- Write bring-up plan: power-on sequence, expected voltage at every test point with tolerance limits, load switch validation, safety steps[cite: 2].
+
+**Ship:** released fab package tagged `rev-A`, `docs/bringup-plan.md`, `docs/eco.md`[cite: 2].
+
+**Senior skill:** release discipline and planning around lead times[cite: 2].
+
+> **Gate 2.** Rev-A released and on order[cite: 2]. Overlay drives both arms from PL through breadboard buffers[cite: 2]. Bring-up plan completed prior to PCB arrival[cite: 2].
+
+---
+
+## Month 3 · Prove: bring-up, real-time control, evidence, safety[cite: 2]
+
+### W09 · Board bring-up and the rev-B list (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Follow W8 bring-up plan: visual inspection under magnification, continuity checks on power nets, power-on through current-limited bench supply with no load[cite: 2]. Record test point voltages against limits[cite: 2].
+- Ripple measurement on 12 V rails with scope AC-coupled (20 MHz BW limit)[cite: 2]. Verify independent load-switch shutdown and hardware e-stop trip on both rails[cite: 2]. Bus loopback tests on both ports[cite: 2]. Incremental bring-up: one servo, full follower arm, then leader arm[cite: 2].
+- Thermal spot readings of shunts and load switches after ten minutes of continuous teleoperation[cite: 2].
+- Log anomalies in ECO tracker, classify root cause (design, assembly, firmware)[cite: 2].
+
+**Measure:** rail voltages vs. tolerance limits, ripple under full-arm motion, component temperatures, e-stop reaction time[cite: 2].
+
+**Ship:** `docs/bringup-report.md`, rev-B ECO list, marked-up schematic[cite: 2].
+
+**Senior skill:** methodical bring-up and root-cause failure analysis[cite: 2].
+
+### W10 · Hardware teleoperation: leader to follower without the PS (14 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Hardware scheduler: PL timer at 250 Hz reads six leader positions, routes through per-joint scale/offset/limit block, and sync-writes follower goals directly in PL[cite: 2]. Follower telemetry updates a BRAM snapshot for single-burst AXI reads by PS[cite: 2].
+- Vitis HLS trajectory filter in `ap_fixed`: rate-limits and smooths leader stream to prevent mechanical shock on follower[cite: 2]. Interpolates waypoints during autonomous replay[cite: 2].
+- Measure loop period jitter on scope via toggling GPIO[cite: 2]. Measure end-to-end hardware teleop latency from leader read packet to follower write packet; benchmark against W3 and W6 baselines[cite: 2].
+- Stretch: stream wrist-camera frames through PL HLS Sobel/threshold filter via AXI DMA; compare FPS against OpenCV on Cortex-A9[cite: 2].
+
+**Measure:** loop period mean and jitter, hardware teleop latency, HLS resource usage (LUT/DSP), PS vs. PL camera FPS[cite: 2].
+
+**Ship:** `overlay/v1.0` with autonomous PL teleop loop, HLS source and reports, latency/jitter comparison table in `docs/performance.md`[cite: 2].
+
+**Senior skill:** real-time hardware architecture and PS/PL compute partitioning[cite: 2].
+
+> **Gate 3.** Overlay v1.0 teleoperates follower from leader entirely in PL on custom rev-A shield at 250 Hz, with documented latency reduction over USB and PS paths[cite: 2].
+
+### W11 · The characterisation bench, built on your ATE habits (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Build pytest automation harness integrating overlay driver, bench supplies via SCPI (`pyvisa`), servo telemetry, and OBSBOT camera[cite: 2].
+- Mount OBSBOT on tripod facing follower arm with ArUco marker on gripper to provide independent optical position tracking[cite: 2].
+- Characterisation suite per joint: position repeatability over 200 cycles (encoder vs. optical), mechanical backlash, step response (rise time, overshoot, settling), current vs. holding load using INA226, thermal rise under 30-minute duty cycle, bus error rates[cite: 2]. Teleoperation trajectory tracking error over time[cite: 2].
+- Auto-generate test report with pass/fail limits and automated plot generation; export CSV records[cite: 2].
+- Run suite across follower arm and compile per-joint datasheets[cite: 2].
+
+**Ship:** `test/bench/` suite, `docs/characterisation-report.md` with encoder vs. optical validation data[cite: 2].
+
+**Senior skill:** design verification testing (DVT) with independent optical measurement[cite: 2].
+
+### W12 · Safety: FMEA, hardware trips, and fault injection (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- FMEA across shield, IP cores, and software: bus stuck low, follower over-current/stall, leader cable disconnection, watchdog timeout, Linux kernel crash, thermal runaway, input brown-out[cite: 2]. Score severity, occurrence, detection; mitigate top risks[cite: 2].
+- Implement PL safety monitors: current threshold comparator on INA226 alert line tripping follower load switch; PS heartbeat watchdog; leader bus silence timeout automatically freezing follower and cutting torque[cite: 2].
+- Fault injection testing: pull leader cable mid-teleop, disconnect follower, kill PS process, force current limit trip, press e-stop[cite: 2]. Scope rail shutdown reaction times[cite: 2].
+
+**Measure:** fault reaction time from trigger to rail shutdown or torque drop across all injection cases[cite: 2].
+
+**Ship:** `docs/fmea.md`, `docs/fault-injection.md` with measured scope captures, updated architecture safety section[cite: 2].
+
+**Senior skill:** functional safety analysis, fault tolerance, and hardware-enforced protection[cite: 2].
+
+### W13 · Final design review, portfolio, and interview readiness (12 h)[cite: 2]
+
+**Do**[cite: 2]
+
+- Compile design package: requirements traceability, architecture diagrams, ICD, schematics, layout, RTL testbench coverage, bring-up logs, performance metrics, characterisation datasheets, FMEA, ECO log[cite: 2].
+- Prepare 20-minute design review presentation and complete mock technical grilling against interview bank[cite: 2].
+- Document ten STAR technical stories highlighting trade-offs, root-cause investigations, safety architectures, and measurement-backed decisions[cite: 2].
+- Stretch: capture LeRobot dataset using hardware teleop loop, train policy model on PC, and execute closed-loop inference using overlay as backend[cite: 2].
+
+**Ship:** public repository, slide deck, recorded presentation, ten STAR stories, portfolio entry[cite: 2].
+
+**Senior skill:** technical communication, engineering defense, and system-level ownership[cite: 2].
+
+> **Gate 4.** Full design package completed, defensible in technical review, with both arms operating safely from PL on custom hardware[cite: 2].
+
+---
+
+## Competency matrix[cite: 2]
+
+| Competency | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| Requirements & architecture | · | · | · | ● | · | · | · | · | · | ● | · | ● | ● |
+| Lab measurement & instrumentation | ● | ● | ● | · | · | ● | · | · | ● | ● | ● | ● | · |
+| Interface specification | · | · | ● | ● | · | ● | · | · | · | · | · | · | · |
+| RTL design | ● | · | · | · | ● | ● | · | · | · | ● | · | ● | · |
+| Verification & coverage | · | · | · | · | ● | ● | · | · | · | · | ● | ● | · |
+| FPGA integration & timing closure | ● | · | · | · | · | ● | · | · | · | ● | · | · | · |
+| Schematic & part selection | · | · | · | ● | · | · | ● | · | ● | · | · | · | · |
+| PCB layout, SI & DFM | · | · | · | · | · | · | · | ● | ● | · | · | · | · |
+| Power design & derating | · | ● | · | ● | · | · | ● | · | ● | · | · | · | · |
+| Bring-up & root-cause | · | ● | · | · | · | ● | · | · | ● | · | · | ● | · |
+| Real-time & performance analysis | · | · | ● | ● | · | ● | · | · | · | ● | · | · | · |
+| Vision & high-bandwidth data paths | ● | · | · | ● | · | · | · | · | · | ● | ● | · | ● |
+| Test automation & DVT | · | · | ● | · | ● | · | · | · | · | · | ● | ● | · |
+| Safety & FMEA | · | · | · | ● | · | · | ● | · | · | · | · | ● | · |
+| Release, ECO & schedule discipline | · | · | · | ● | · | · | · | ● | ● | · | · | · | ● |
+| Reviews, documentation & communication | ● | ● | ● | ● | · | · | ● | · | ● | · | ● | · | ● |[cite: 2]
+
+---
+
+## Kit and tools[cite: 2]
+
+| Item | Used from | Notes |
+|---|---|---|
+| SO-ARM101 follower (6 × HX-30HM 12 V) with wrist camera | W1 | In hand. Nominal 12 V bus.[cite: 2] |
+| SO-ARM101 leader (6 × HX-10HM 12 V) | W2 | In hand. Nominal 12 V bus; back-drivable.[cite: 2] |
+| Spare OBSBOT camera, tripod, ArUco marker | W2 | In hand. Independent optical measurement standard in W11.[cite: 2] |
+| Two Hiwonder BusLinker V3.0 adapters | W2 | Reference path for W3 latency baselines; retired after W6.[cite: 2] |
+| PYNQ-Z2, 32 GB microSD, Ethernet, powered USB hub | W1 | PYNQ v3.1.1 image (2024.1 toolchain baseline).[cite: 2] |
+| Bench power supply: 12 V at ≥ 8 A with programmable current limit | W2 | Characterisation runs under current-limited protection.[cite: 2] |
+| Oscilloscope, ≥ 100 MHz, two channels | W1 | Bus rise/fall times, loop-tick jitter, teleop latency, e-stop trip timing.[cite: 2] |
+| Logic analyser (sigrok or Saleae) | W3 | 1 Mbps TTL decoding across dual buses.[cite: 2] |
+| Two 74LVC1G125 / SN74LVC1T45 breakouts | W6 | Interim breadboard bus drivers prior to shield arrival.[cite: 2] |
+| INA226 breakout, NTC, e-stop switch, TVS, XT30 | W7 | Prototype power sensing and safety trip circuits.[cite: 2] |
+| Thermal camera or IR thermometer | W9 | Thermal qualification during bring-up.[cite: 2] |
+| Vivado + Vitis 2026.1 (Basic tier), KiCad 8+, cocotb, pytest, pyvisa | W0 | Primary toolchain.[cite: 2] |
+
+---
+
+## Reading list, paced to the weeks[cite: 2]
+
+**Zynq and PYNQ**[cite: 2]
+
+- *The Zynq Book* (free PDF), chapters on PS/PL and AXI — W1[cite: 2].
+- PYNQ v3.1 changelog and release notes — W1[cite: 2].
+- AMD UG585 Zynq-7000 TRM, interconnect and clocking chapters — W1, W6[cite: 2].
+- PYNQ docs: overlay design methodology, `DefaultIP`, DMA — W1, W6, W10[cite: 2].
+- UG903 Vivado constraints, UG906 timing analysis — W6[cite: 2].
+- UG1399 Vitis HLS user guide, `ap_fixed` and pipelining — W10[cite: 2].
+- Vitis Vision library overview, AXI-stream video example — W10[cite: 2].
+
+**Arms, servos, cameras**[cite: 2]
+
+- LeRobot SO-101 teleoperation documentation — W2[cite: 2].
+- Hiwonder BusLinker V3.0 User Manual: https://docs.hiwonder.com/projects/BusLinker/en/latest/docs/1_BusLinker_V3.0_Servo_Debugging_Board_User_Manual.html — W2, W3.
+- Hiwonder/TTL half-duplex bus servo protocol specification — W3.
+- cocotb documentation and UART testbench examples — W5[cite: 2].
+- OpenCV ArUco marker pose estimation tutorial — W11[cite: 2].
+- LeRobot dataset recording and ACT policy training guide — W13[cite: 2].
+
+**Senior craft**[cite: 2]
+
+- Horowitz & Hill, *The Art of Electronics*, power distribution and load switches — W7.
+- Johnson & Graham, *High-Speed Digital Design*, chapters 1–6 — W8[cite: 2].
+- Ott, *Electromagnetic Compatibility Engineering*, grounding and split planes — W8.
+- Agans, *Debugging: The 9 Indispensable Rules* — W9[cite: 2].
+- AIAG/VDA FMEA Handbook overview — W12.
+
+---
+
+## Interview bank[cite: 2]
+
+1. Walk me through your power distribution architecture. Why did you choose a unified 12 V rail with dual load switches instead of separate buck-regulated rails? How did you size inrush limiting and bulk capacitance?
+2. Why a 4-layer stackup? Where do return currents flow for the 1 Mbps single-ended TTL bus lines, and how did you prevent ground bounce from servo stall transients coupling into the PYNQ-Z2 logic ground?[cite: 2]
+3. How did you verify the bus-master RTL before hardware bring-up? What functional coverage did you achieve in cocotb, and what timing issue did on-chip ILA reveal during half-duplex turnaround?[cite: 2]
+4. Explain your clocking and synchronization strategy. Did you keep the baud generator in the 100 MHz AXI domain or cross domains, and how did you prove metastability safety?[cite: 2]
+5. When Vivado timing failed on the AXI interconnect, what was your methodical root-cause process to achieve timing closure?[cite: 2]
+6. What quantitative measurements dictated partitioning the teleoperation loop into PL while leaving camera ingestion on the PS?[cite: 2]
+7. What limits your end-to-end teleoperation latency, and what architectural change would be required to halve it?[cite: 2]
+8. Your optical tracking (OBSBOT/ArUco) and internal servo encoder readings show a discrepancy during high-acceleration moves. Which measurement is ground truth and why?[cite: 2]
+9. In your FMEA, which critical failure mode was transitioned from a software handler to an autonomous hardware trip in PL, and what was the measured reaction time?[cite: 2]
+10. Describe your bring-up sequence when the rev-A shield arrived. What test points were verified before connecting inductive servo loads?[cite: 2]
+11. What ECOs were identified between rev-A and rev-B, and how was each detected during bench characterization?[cite: 2]
+12. How would you transition this shield design into high-volume manufacturing? Detail ICT test point coverage, bed-of-nails verification, and automated flashing.[cite: 2]
+13. You built bitstreams on Vivado 2026.1 targeting a 2024.1-era PYNQ v3.1.1 image. What compatibility risks exist, and how did you experimentally validate bitstream handoff?[cite: 2]
+14. How do you run a formal design review so that it challenges assumptions and identifies marginalities rather than acting as a rubber stamp?[cite: 2]
+15. Detail a specific bench measurement that overturned a prior design assumption on this project.[cite: 2]
+16. If your project schedule was compressed from 13 weeks to 6 weeks, what scope would you descope and what critical verification tasks would you refuse to compromise?[cite: 2]
+
+---
+
+## Risks and how to slip gracefully[cite: 2]
+
+| Risk | Response |
+|---|---|
+| PCB fab and assembly lead times exceed two weeks | Swap W9 and W10. The PL teleop loop runs on the breadboard buffers while awaiting board delivery.[cite: 2] |
+| Vivado 2026.1 and PYNQ v3.1.1 image incompatibility | Custom overlays are unaffected; if bitstream loading fails in W1, fall back to Vivado 2024.1 and document toolchain version pinning.[cite: 2] |
+| Dual UVC cameras saturate USB 2.0 host bandwidth | Drop stream to MJPEG 640×480 @ 30 fps, or offload OBSBOT logging to host PC, leaving wrist camera on PYNQ.[cite: 2] |
+| Inrush current trips bench supply on simultaneous 12 V arm power-up | Implement staggered soft-start via PL load switches in W7/W10 and size input bulk capacitance with NTC inrush limiting. |
+| RTL development schedule slips | Leverage W7 by prototyping power circuits on breadboard; do not compromise cocotb verification suite.[cite: 2] |
+| Bench availability constrained | Prioritize W4, W7, and W13 documentation and architecture tasks, which carry the highest review weight.[cite: 2] |
+| Servo damage during high-load stall testing | Limit stall characterisation to <2 seconds with supply current clamps engaged; maintain one spare servo per joint type.[cite: 2] |
+
+Weekly ritual: 30 minutes every Sunday to reconcile deliverables, update the risk register, and adjust task allocations[cite: 2].
+
+---
+
+*Plan updated 10 September 2026 for unified 12 V power architecture with HX-10HM/HX-30HM servos. Toolchain: PYNQ v3.1.1 with Vivado 2026.1[cite: 2].*

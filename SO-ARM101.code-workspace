@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "SSH FS - pynq-z2",
+			"uri": "ssh://pynq-z2/home/xilinx"
+		}
+	],
+	"settings": {}
+}
