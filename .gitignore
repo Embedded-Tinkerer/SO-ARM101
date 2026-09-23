@@ -1,0 +1,8 @@
+*.jou
+*.log
+.Xil/
+.venv/
+__pycache__/
+*.pyc
+build/
+*.vcd
