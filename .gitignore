@@ -1,7 +1,10 @@
 *.jou
 *.log
 .Xil/
+.venv
 .venv/
+
+
 __pycache__/
 *.pyc
 build/
