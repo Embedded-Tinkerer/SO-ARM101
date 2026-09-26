@@ -1,0 +1,11 @@
+line_number,packet_hex,status
+1,ff ff 01 04 02 38 02 be,VALID
+2,ff ff 01 04 02 38 02 ff,INVALID
+3,ff ff 01 04 02 38 02 be,VALID
+4,fa ff 06 04 02 38 02 be,INVALID
+5,ff ff 01 04 02 38 02 be,VALID
+6,ff ff 01 04 02 38 02 be,VALID
+7,ff ff 01 04 02 38 02 baxf,MALFORMED
+8,af ff 01 04 02 38 02 be,INVALID
+9,ff ff 01 04 02 38 02 fe,INVALID
+10,7f ff 01 04 02 38 02 bc,INVALID
