@@ -53,9 +53,40 @@ def print_table(valid_packets: list):
         )
     print("=" * 65)
 
+def export_csv(valid_packets: list, csv_filename: str = "valid_packets.csv"):
+    """Export parsed valid packets to a CSV file."""
+    with open(csv_filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["line_num", "header", "id", "length", "instr", "params", "checksum", "total_length"])
+        for p in valid_packets:
+            writer.writerow([
+                p["line_num"], p["header"], p["id"], p["length"],
+                p["instr"], p["params"], p["checksum"], p["total_length"]
+            ])
+    print(f"Exported valid packets to: {csv_filename}")
+
+def plot_packet_lengths(valid_packets: list, plot_filename: str = "packet_lengths.png"):
+    """Generate and save a histogram of valid packet lengths."""
+    lengths = [p["total_length"] for p in valid_packets]
+
+    plt.figure(figsize=(8, 5))
+    bins = range(min(lengths) - 1, max(lengths) + 3)
+    plt.hist(lengths, bins=bins, align="left", rwidth=0.7, color="teal", edgecolor="black")
+
+    plt.title("Distribution of Valid Packet Lengths", fontsize=14, fontweight="bold")
+    plt.xlabel("Packet Length (Bytes)", fontsize=12)
+    plt.ylabel("Packet Count", fontsize=12)
+    plt.grid(axis="y", linestyle="--", alpha=0.6)
+
+    plt.savefig(plot_filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved packet length histogram to: {plot_filename}")
+
 def main():
     parser = argparse.ArgumentParser(description="Inspect, validate, and summarize HX servo packets")
     parser.add_argument("filename", help="Path to packets text file (e.g. packets.txt)")
+    parser.add_argument("--csv", default="valid_packets.csv", help="Output CSV path (default: valid_packets.csv)")
+    parser.add_argument("--plot", default="packet_lengths.png", help="Output plot path (default: packet_lengths.png)")
     args = parser.parse_args()
 
     print(f"Reading packets from: {args.filename}")
@@ -64,8 +95,8 @@ def main():
     print(f"Summary: {len(valid_packets)} valid, {invalid_count} invalid, {malformed_count} malformed")
     if valid_packets:
         print_table(valid_packets)
-
-
+        export_csv(valid_packets, args.csv)
+        plot_packet_lengths(valid_packets, args.plot)
 
 if __name__ == "__main__":
     main()
