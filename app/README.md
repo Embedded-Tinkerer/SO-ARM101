@@ -27,3 +27,7 @@ Files:
 - `src/app.js`, `src/style.css`, `src/shell.html`: the app
 - `vendor/marked.min.js`: markdown parser (marked v12.0.2, MIT)
 - `build.py`: inlines everything into `index.html`
+
+## Workbench
+
+`app/workbench/` serves this same app with a code editor, terminal and file tree beside the plan, and saves progress to `.study/progress.json` in the repo. It runs in Docker on a server (Unraid) or directly on the laptop. See [workbench/README.md](workbench/README.md).

@@ -49,6 +49,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
@@ -356,9 +357,18 @@ window.PLAN_MD = "# SO-ARM101 on PYNQ-Z2 — Detailed Working Plan\n\n**20-week 
 
   /* ------------------------------------------------------------ storage */
   const KEY = "arm-on-zynq:v1";
+  // The workbench server sets AOZ_HOST: progress then lives in the repo instead of this browser.
+  const HOST = window.AOZ_HOST || null;
   let S = { done: {}, steps: {}, tasks: {}, notes: {}, theme: "" };
-  try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+  try {
+    const raw = HOST ? JSON.stringify(HOST.initial || {}) : localStorage.getItem(KEY);
+    if (raw) S = Object.assign(S, JSON.parse(raw));
+    if (HOST) { const local = JSON.parse(localStorage.getItem(KEY) || "{}"); if (local.theme) S.theme = local.theme; }
+  } catch (e) { /* storage unavailable */ }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(HOST ? { theme: S.theme } : S)); } catch (e) { /* storage unavailable */ }
+    if (HOST && HOST.save) HOST.save(S);
+  }
 
   /* ------------------------------------------------------------ parse */
   const lexed = marked.lexer(MD);
@@ -574,6 +584,7 @@ window.PLAN_MD = "# SO-ARM101 on PYNQ-Z2 — Detailed Working Plan\n\n**20-week 
 
   /* ------------------------------------------------------------ enhance rendered markdown */
   function enhance(root, key, withSteps) {
+    if (HOST && HOST.enhance) queueMicrotask(() => HOST.enhance(root, key));
     $$("table", root).forEach((t) => { const w = document.createElement("div"); w.className = "table-wrap"; t.replaceWith(w); w.appendChild(t); });
     $$("pre", root).forEach((pre) => {
       const b = document.createElement("button"); b.className = "copy"; b.type = "button"; b.textContent = "Copy";
@@ -683,7 +694,7 @@ window.PLAN_MD = "# SO-ARM101 on PYNQ-Z2 — Detailed Working Plan\n\n**20-week 
     const w0box = w0 && w0p.done < w0p.total && !behind.includes(w0) ? `<div class="callout"><h3>Week 0 runs alongside R1 and R2</h3><p>Ordering, installs and the repo skeleton: ${w0p.done} of ${w0p.total} done. <a href="#W0">Open Week 0</a>.</p></div>` : "";
 
     return `<div class="page"><div class="hero-now">${lead}</div>${nextCard}${behindBox}${w0box}${stats}${tl}
-      <p class="hint">Progress is saved in this browser. Tick steps as you go, mark each session complete when its <em>Done when</em> is true. Use <kbd>←</kbd> <kbd>→</kbd> to move between sessions and <kbd>/</kbd> to search. <a href="#progress">Back up your progress</a>.</p></div>`;
+      <p class="hint">${HOST ? "Progress is saved to <code>.study/progress.json</code> in the repo; commit it like any other file." : "Progress is saved in this browser."} Tick steps as you go, mark each session complete when its <em>Done when</em> is true. Use <kbd>←</kbd> <kbd>→</kbd> to move between sessions and <kbd>/</kbd> to search. <a href="#progress">Back up your progress</a>.</p></div>`;
   }
 
   function viewWeek(w) {
@@ -721,7 +732,7 @@ window.PLAN_MD = "# SO-ARM101 on PYNQ-Z2 — Detailed Working Plan\n\n**20-week 
       ${isWrap ? sundayLog(w) : ""}
       <div class="finish">
         <div><button class="btn" id="complete" type="button"></button> <span class="hint" id="finish-hint"></span></div>
-        <div class="notes"><label for="notes-${s.id}">Scratch notes for ${esc(w.code)} ${esc(s.code)} (kept in this browser; the real record goes in the repo)</label>
+        <div class="notes"><label for="notes-${s.id}">Scratch notes for ${esc(w.code)} ${esc(s.code)} (${HOST ? "saved in .study/progress.json" : "kept in this browser; the real record goes in the repo"})</label>
           <textarea id="notes-${s.id}" placeholder="Commands you actually ran, numbers you measured, what surprised you…">${esc(S.notes[s.id] || "")}</textarea></div>
         ${pagerHtml(s.id)}
         <p class="hint"><kbd>←</kbd> <kbd>→</kbd> previous / next session</p>
@@ -760,7 +771,7 @@ window.PLAN_MD = "# SO-ARM101 on PYNQ-Z2 — Detailed Working Plan\n\n**20-week 
   function viewProgress() {
     const o = overall();
     return `<div class="page"><h1 class="page-title">Back up or reset progress</h1>
-      <p>Your ticks and notes live only in this browser (${o.done} of ${o.total} sessions complete). Copy the backup below into a file in the repo, such as <code>docs/study-progress.json</code>, to move it to another machine or keep it safe.</p>
+      <p>${HOST ? `Your ticks and notes are saved to <code>.study/progress.json</code> in the repo (${o.done} of ${o.total} sessions complete). Commit it to keep a history.` : `Your ticks and notes live only in this browser (${o.done} of ${o.total} sessions complete).`} Copy the backup below into a file in the repo, such as <code>docs/study-progress.json</code>, to move it to another machine or keep it safe.</p>
       <div class="tools">
         <div class="row"><button class="btn primary" id="copy-backup" type="button">Copy backup</button></div>
         <label class="eyebrow" for="restore">Restore from a backup</label>
@@ -793,7 +804,7 @@ window.PLAN_MD = "# SO-ARM101 on PYNQ-Z2 — Detailed Working Plan\n\n**20-week 
     renderNav(id);
     document.title = (r.item ? `${r.week.code} ${r.item.code} · ` : r.week ? `${r.week.code} · ` : "") + "arm-on-zynq";
     document.body.classList.remove("rail-open");
-    window.scrollTo(0, 0);
+    window.scrollTo(0, 0); $("#main").scrollTop = 0;
     const act = $(".nav-item.active"); if (act) act.scrollIntoView({ block: "nearest" });
   }
 

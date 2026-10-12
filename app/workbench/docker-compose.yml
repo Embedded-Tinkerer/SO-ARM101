@@ -1,0 +1,19 @@
+# Unraid: put the repo at /mnt/user/projects/arm-on-zynq (or change the path below),
+# put WORKBENCH_PASSWORD in a .env file next to this one, then:
+#   docker compose -f app/workbench/docker-compose.yml up -d --build
+services:
+  arm-workbench:
+    build: .
+    image: arm-workbench:latest
+    container_name: arm-workbench
+    user: "99:100"
+    environment:
+      WORKBENCH_PASSWORD: ${WORKBENCH_PASSWORD:?set WORKBENCH_PASSWORD in app/workbench/.env}
+      # Keeps you logged in across container restarts. Any long random string.
+      WORKBENCH_SECRET: ${WORKBENCH_SECRET:-}
+    volumes:
+      - /mnt/user/projects/arm-on-zynq:/workspace
+      - /mnt/user/appdata/arm-workbench:/config   # home folder: .gitconfig, .ssh, shell history
+    ports:
+      - "8095:8080"
+    restart: unless-stopped
