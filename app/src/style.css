@@ -192,6 +192,13 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--ok); cur
 .done-when { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 8px; background: var(--accent-soft); margin: 1.4em 0 1em; }
 .done-when .lbl { font: 600 11px/1.6 var(--f-display); letter-spacing: .09em; text-transform: uppercase; color: var(--accent); white-space: nowrap; padding-top: 1px; }
 .done-when p { margin: 0; }
+.where { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; margin: 0 0 1.2em; }
+.where .lbl { font: 600 11px/1.6 var(--f-display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.where .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.where .place { font: 600 12px/1.2 var(--f-display); padding: 4px 9px; border-radius: 999px; background: var(--code-bg); color: var(--ink); }
+.where .place.wb { background: var(--accent-soft); color: var(--accent); }
+.where .place.hw { background: var(--gate-soft); color: var(--gate); }
+.where p { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--muted); }
 
 /* session footer: complete + prev/next */
 .finish { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 16px; }

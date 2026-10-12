@@ -252,6 +252,20 @@
       if (href.startsWith("#")) { const r = slugRoute[href.slice(1)]; if (r) a.setAttribute("href", "#" + r); }
       else { a.target = "_blank"; a.rel = "noopener"; }
     });
+    // "Where: A · B. Note" paragraphs become a row of place chips plus the note
+    $$("p", root).forEach((p) => {
+      const f = p.firstElementChild;
+      if (!(f && f.tagName === "STRONG" && /^Where:?$/i.test(f.textContent.trim()) && p.firstChild === f)) return;
+      f.remove();
+      const html = p.innerHTML.replace(/^\s*:?\s*/, "");
+      const cut = html.search(/\.(\s|$)/);
+      const places = (cut < 0 ? html : html.slice(0, cut)).split(/\s+·\s+/).map((s) => s.trim()).filter(Boolean);
+      const note = cut < 0 ? "" : html.slice(cut + 1).trim();
+      const kind = (s) => /^Workbench$/i.test(s) ? "wb" : /laptop workbench|bench/i.test(s) ? "hw" : "app";
+      const box = document.createElement("div"); box.className = "where";
+      box.innerHTML = `<span class="lbl">Where</span><span class="chips">${places.map((s) => `<span class="place ${kind(s)}">${s}</span>`).join("")}</span>` + (note ? `<p>${note}</p>` : "");
+      p.replaceWith(box);
+    });
     // "Done when:" paragraphs become a callout
     $$("p", root).forEach((p) => {
       const f = p.firstElementChild;

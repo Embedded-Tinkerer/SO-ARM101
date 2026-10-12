@@ -79,6 +79,29 @@ Each week closes with a **measurement table** (what to record and where), a **de
 2. **Rail check before every power-on.** Both arms run on 12 V, and every servo in the kit is rated 9–12.6 V — so the hazard is not a mixed-up rail but **over-voltage**. A bench supply left at 13.8 V from another job, a 15 V laptop brick, or a 24 V adapter with the same barrel plug will take all twelve servos past their maximum at once. Say it out loud: *twelve volts, and the display agrees.* This check appears as an explicit step in every procedure that energises an arm, and it stays there even when it feels tedious.
 3. **Current limit before voltage.** Every bench supply is set to its limit *first*, with the output off, then the voltage, then the output on. The limits are given per procedure.
 
+**Where you work**
+
+Most of this plan happens in the **workbench**: this page, with a code editor, a terminal and the repo's files beside the plan, served from the Unraid server and open in any browser. Only the Xilinx tools, KiCad and anything plugged in by USB live on the laptop. Every session opens with a **Where** line naming the places it needs:
+
+| Place | What it is | Used for |
+|---|---|---|
+| **Workbench** | The workbench on the Unraid server | Python, Verilog, cocotb, pytest and Verilator lint; every document, spec and decision record; git; SSH and `scp` to the PYNQ-Z2; instruments on the LAN |
+| **Laptop workbench** | The same app running on the laptop, started with `--no-auth` (see `app/workbench/README.md`) | Anything on the laptop's USB ports: BusLinkers, USB-UART adapter, logic analyser, cameras, USB instruments, LeRobot. Also Vivado batch builds, and GTKWave for waveforms |
+| **Vivado**, **Vitis HLS** | The Xilinx GUIs on the laptop | Block designs, IP packaging, Hardware Manager, the ILA, HLS reports |
+| **KiCad** | KiCad on the laptop | Schematic and layout, W7–W9 |
+| **PYNQ Jupyter** | Jupyter on the board, at `http://<board IP>:9090` | Loading overlays and reading registers from Python |
+| **Bench** | Supplies, scope, meter, paper, your hands | Measurements and anything energised |
+| **Windows desktop** | The desktop PC | ServoStudio (W2, W12) and policy training (W4, W13) |
+
+**One repo, two copies.** The server and the laptop each hold a clone of `arm-on-zynq`, kept in step through GitHub. Two habits stop them drifting apart:
+
+1. **Start every session with `git pull`** in the workbench you are about to use.
+2. **End every session with a commit and `git push`**, including `.study/progress.json`, which holds your ticks.
+
+A session that moves between places (write the Tcl in the workbench, build it on the laptop) needs one push and one pull in the middle. A session that touches USB hardware is simplest done entirely in the laptop workbench.
+
+**Using the workbench with this plan.** File paths in a session are links: click one to open it, or to create it if it doesn't exist yet. Shell blocks have a **To terminal** button that pastes the commands into the terminal; nothing runs until you press Enter. Plots, photos and scope screenshots open in the editor pane. The server workbench comes with Python 3.12, Icarus Verilog, Verilator, cocotb, pytest, numpy, matplotlib, pyserial and pyvisa installed, so there is no virtual environment to activate there. On the laptop, start the workbench from inside `.venv` and every terminal it opens inherits it.
+
 **Version drift.** This plan is written against PYNQ v3.1.1, Vivado/Vitis 2026.1, KiCad 8, and the LeRobot and OpenCV APIs current at time of writing. Tool CLIs move — LeRobot in particular has renamed its entry points more than once, and OpenCV moved ArUco pose estimation out of `estimatePoseSingleMarkers`. Where a step names a command, check `--help` once at the start of the week and record the actual invocation in your notes. Treat any mismatch as a finding worth a line in `docs/decisions/`, not an obstacle.
 
 ---
@@ -102,7 +125,7 @@ Why this project maps to a senior role: every week produces a document or artifa
 - If you have the Starter or DIY variant, which ship without cameras, use the OBSBOT as the scene camera and borrow any UVC webcam for the W11 optical instrument.
 - Toolchain: PYNQ v3.1.1 image, which was built on the 2024.1 toolchain, with the current Vivado and Vitis release (2026.1 at time of writing). Custom overlays build cleanly on a newer Vivado than the image; only a rebuild of the base overlay itself needs its IP cores upgraded.
 - You are **new to both Python and Verilog**, and comfortable with SCPI instruments and lab measurement from RF test work. Phase 0 (R1–R5) takes you from zero to the level W1 assumes, and ends with Gate 0 — an honest check before the project clock starts. KiCad may also be new; R5 includes an optional hour on it.
-- **Primary host: a dedicated Linux laptop** (Ubuntu LTS) for everything — Vivado, simulation, Python, LeRobot and instruments. **A Windows desktop with an AMD Radeon RX 9070 XT** serves three narrower roles: ServoStudio, which is Windows-only (W2, W12); policy training in W13, on the Radeon through AMD's ROCm stack; and a fallback host if the laptop fails. For training, the desktop dual-boots Ubuntu, because ROCm's full, officially supported stack for this card is Linux-only.
+- **Primary workspace: the workbench on the Unraid server**, reached from any browser, for code, simulation, tests and documents. **A dedicated Linux laptop** (Ubuntu LTS) runs Vivado, Vitis HLS, KiCad and everything plugged in by USB — BusLinkers, cameras, the logic analyser, LeRobot — through the same workbench app running locally. **A Windows desktop with an AMD Radeon RX 9070 XT** serves three narrower roles: ServoStudio, which is Windows-only (W2, W12); policy training in W13, on the Radeon through AMD's ROCm stack; and a fallback host if the laptop fails. For training, the desktop dual-boots Ubuntu, because ROCm's full, officially supported stack for this card is Linux-only.
 - **Vivado Basic (free) tier, 2026.1.** It supports Linux, but its license is node-locked and renewed annually, its simulator is limited (the plan uses Icarus/Verilator with cocotb instead), and its ILA is **instantiation-only: one ILA core, at most five probes**, with no System ILA and no `mark_debug` insertion flow. W6 and W10 are written to fit inside that.
 
 **Senior-level thread:** each week names the competency being exercised. By the end you should be able to tell a concrete story for every row in the competency matrix.
@@ -163,9 +186,11 @@ R1 starts the week this plan was revised, so it begins immediately. If you would
 
 ## Week 0: Setup (runs alongside R1–R2)
 
-Budget 6–8 h, spread across R1 and R2 on top of their sessions. None of it is intellectually hard and all of it is on the critical path — a missing microSD card costs you W1 entirely. **Do S1 and S2 in the first two days of R1** so deliveries arrive during the ramp-up; do S3's Ubuntu and Python install before R1 S1 — ideally over the first weekend — and start the long Vivado install early in R2 so it is ready for R3.
+Budget 6–8 h, spread across R1 and R2 on top of their sessions. None of it is intellectually hard and all of it is on the critical path — a missing microSD card costs you W1 entirely. **Do S1 and S2 in the first two days of R1** so deliveries arrive during the ramp-up; set up the server workbench (S3 step 0) before R1 S1, do the laptop's Ubuntu install over the first weekend, and start the long Vivado install early in R2 so it is ready for R4.
 
 ### S1 · Inventory, labelling and the over-voltage hazard (1 h)
+
+**Where:** Bench. Labels, calipers and photos; the photos go into `docs/` from whichever workbench is handy.
 
 1. Lay out everything on the bench and photograph it. That photo is the first image in `docs/arm-bringup.md`.
 2. Set the bench supply to **12.0 V, limit 5 A**, output off. If you have two supplies, set both identically — one per arm makes W2's current measurements cleaner, but either arrangement works.
@@ -180,6 +205,8 @@ Budget 6–8 h, spread across R1 and R2 on top of their sessions. None of it is 
 **Done when:** every supply that could reach the arms is labelled, the connector is calipered, and the kit's power distribution is photographed in `docs/`.
 
 ### S2 · Ordering (1 h)
+
+**Where:** Workbench. Log the order in `docs/risks.md` as you place it.
 
 Order everything in one go; the long pole is shipping, not money.
 
@@ -206,11 +233,14 @@ Order everything in one go; the long pole is shipping, not money.
 
 ### S3 · Laptop and toolchain install (5–6 h, partly unattended)
 
-This is longer than a Windows install would be, and it is time well spent: every problem you hit here is one you would otherwise hit in the middle of R4 or W1. Keep a running log in `docs/toolchain.md` as you go — the commands you ran and the errors you fixed. It becomes your rebuild guide if the laptop ever dies.
+**Where:** Laptop · Workbench · Windows desktop. The laptop still needs Ubuntu, Vivado, KiCad and the serial setup; the workbench on the server comes ready with everything else.
 
+This is longer than a Windows install would be, and it is time well spent: every problem you hit here is one you would otherwise hit in the middle of R4 or W1. The laptop needs the Xilinx tools, KiCad and the USB setup; the Python and simulation tools you will use every day come ready-made in the server workbench (step 0). Keep a running log in `docs/toolchain.md` as you go — the commands you ran and the errors you fixed. It becomes your rebuild guide if the laptop ever dies.
+
+0. **Set up the workbench on the Unraid server** by following `app/workbench/README.md`: get the repo onto the array, set a password, build and start the container, and give it an SSH key for GitHub. When `http://UNRAID_IP:8095` shows this plan with the editor and terminal beside it, R1 can start, even if the laptop isn't ready yet. Pointing your domain at it can wait.
 1. **Check the laptop.** 16 GB of RAM is workable for this design and 32 GB is comfortable; at least 200 GB of free SSD for the OS plus Vivado; an Ethernet port or a USB-Ethernet adapter for the PYNQ-Z2; and count your USB ports — the BusLinkers, USB-UART adapter, logic analyser, JTAG cable and cameras will outnumber them, so plan on a powered hub on the laptop too.
 2. **Install Ubuntu LTS.** Before choosing the version, open AMD's *Vivado Release Notes, Installation and Licensing* (UG973) for 2026.1 and check its supported-OS table; pick the newest Ubuntu LTS listed there. A clean, full-disk install is simplest since the laptop is dedicated. Take system updates at weekends, never the night before a measurement session — a kernel update that breaks a USB driver mid-week costs a session.
-3. **Learn the terminal basics in the first hour** if Linux is new: `cd`, `ls`, `pwd`, `mkdir`, `cp`, `mv`, `cat`, `less`, `grep`, tab completion, `sudo`, and `apt`. Everything in this plan happens in a terminal.
+3. **Learn the terminal basics in the first hour** if Linux is new: `cd`, `ls`, `pwd`, `mkdir`, `cp`, `mv`, `cat`, `less`, `grep`, tab completion, `sudo`, and `apt`. Every command in this plan runs in a terminal, usually the one in the workbench; `sudo` and `apt` are for the laptop, since the server workbench comes with its tools installed.
 4. **Base packages:**
 
 ```bash
@@ -219,7 +249,7 @@ sudo apt install build-essential git make python3-venv python3-dev \
                  iverilog gtkwave verilator libusb-1.0-0 pulseview
 ```
 
-   Check `verilator --version` against what current cocotb requires. Ubuntu's packaged Verilator can lag well behind; if it is too old, build it from source or stay on Icarus. Record the decision.
+   These are for the laptop: GTKWave and PulseView are desktop programs, and Icarus and Verilator let you simulate on the laptop when the server is down. Check `verilator --version` against what current cocotb requires. Ubuntu's packaged Verilator can lag well behind; if it is too old, build it from source or stay on Icarus. Record the decision.
 5. **Serial port permissions, and the one Ubuntu trap.**
 
 ```bash
@@ -237,32 +267,38 @@ sudo apt remove brltty              # see below
    - If Vivado reports no valid license, the usual cause on a laptop is the license manager not finding the network interface the host ID was generated from. Check the host ID Vivado's License Manager reports against the one on your AMD license page before anything else.
 7. **PYNQ v3.1.1 image.** Download, verify the checksum with `sha256sum`, and write to the microSD with `dd` or balenaEtcher. Do not skip the checksum: a truncated image boots far enough to waste an evening.
 8. **KiCad 8 or newer**, from KiCad's official Ubuntu PPA or Flatpak rather than Ubuntu's own package, which is usually a version behind. Add the JLCPCB/LCSC library plugin via the Plugin and Content Manager.
-9. **Python environment** on the laptop:
+9. **Python environment and workbench** on the laptop. The server workbench needs none of this; the laptop does, for LeRobot, cameras and anything on USB:
 
 ```bash
 cd ~/arm-on-zynq
 python3 -m venv .venv
 source .venv/bin/activate
-pip install lerobot pyserial cocotb pytest pyvisa pyvisa-py pyusb opencv-python numpy matplotlib
+pip install lerobot pyserial cocotb pytest pyvisa pyvisa-py pyusb opencv-python numpy matplotlib aiohttp
 pip freeze > requirements.txt
+python app/workbench/vendor.py          # once: the editor and terminal libraries
+python app/workbench/server.py --no-auth
 ```
+
+   Open <http://127.0.0.1:8080>: that is the **laptop workbench**, the same app as on the server but running here, with your venv, serial ports and instruments. `--no-auth` only listens on 127.0.0.1, so nothing else on the network can reach it. Start it this way, from inside the venv, whenever a session's **Where** line says *Laptop workbench*.
 
    Check Hiwonder's LeRobot tutorial for the Python version it expects. If it differs from Ubuntu's, create the environment with `uv` or `pyenv` at the required version instead of the system `python3`.
    **Instruments on Linux:** NI-VISA's Linux support is narrow, so use the pure-Python **pyvisa-py** backend (`pyvisa.ResourceManager("@py")`). LAN-connected instruments work immediately. USB-TMC instruments need a small udev rule granting your user access to the device; the pyvisa-py documentation shows it.
 10. **Hiwonder tooling, on the Windows desktop.** ServoStudio is a Windows program. Install it and the CH341 serial driver on the desktop from the BusLinker V3.0 download folder. On the laptop, download into `docs/vendor/` the **Hiwonder Magnetic Encoder Bus Servo Communication Protocol** document, the HX-30HM and HX-10HM product documents, and Hiwonder's SO-ARM101 LeRobot tutorial, recording each file's date or version.
 11. **Simulator decision.** Icarus Verilog (`iverilog -g2012`) or Verilator, both now installed natively. Verilator is the better choice if you expect to use `always_ff`, packed structs or interfaces; Icarus is lighter and enough for the plan as written. Record it as your first decision record.
-12. Verify each install with one command and paste the output into `docs/toolchain.md`: `lsb_release -a`, `uname -r`, `vivado -version`, `kicad-cli version`, `iverilog -V`, `verilator --version`, `python -c "import cocotb, pyvisa, cv2; print('ok')"`, and on the desktop, ServoStudio's version from its Settings page.
+12. Verify each install with one command and paste the output into `docs/toolchain.md`. On the laptop: `lsb_release -a`, `uname -r`, `vivado -version`, `kicad-cli version`, `iverilog -V`, `verilator --version`, `python -c "import cocotb, pyvisa, cv2; print('ok')"`. In the server workbench's terminal: `iverilog -V`, `verilator --version`, `python -c "import cocotb, pytest, pyvisa; print(cocotb.__version__)"`. On the desktop, ServoStudio's version from its Settings page.
 
-**Done when:** `docs/toolchain.md` lists a version string for every tool, a BusLinker shows up under `/dev/serial/by-id/`, and Vivado opens without a license warning.
+**Done when:** the server workbench opens in a browser, `docs/toolchain.md` lists a version string for every tool, a BusLinker shows up under `/dev/serial/by-id/`, and Vivado opens without a license warning.
 
 ### S4 · Repository skeleton (1 h)
 
-1. Create `arm-on-zynq` and the folder structure:
+**Where:** Workbench
+
+1. If you set up the workbench from an existing clone, `arm-on-zynq` already exists: skip the `git init` line and run the rest in the workbench terminal, which opens in the repo folder. Otherwise create it and the folder structure:
 
 ```bash
 git init arm-on-zynq && cd arm-on-zynq
 mkdir -p docs/decisions hw/shield rtl overlay sw test/cocotb test/bench
-printf '*.jou\n*.log\n.Xil/\n*.bit\n*.hwh\n.venv/\n__pycache__/\n' > .gitignore
+printf '*.jou\n*.log\n.Xil/\nbuild/\n*.bit\n*.hwh\n.venv/\n__pycache__/\nsim_build/\n' > .gitignore
 ```
 
 2. Reconsider `*.bit` and `*.hwh` in `.gitignore` — you *do* want released bitstreams tracked, so instead ignore build scratch and commit tagged overlay outputs deliberately under `overlay/vX.Y/`. Write this as a one-line note in the README; it is exactly the kind of small ownership decision reviewers notice.
@@ -279,7 +315,7 @@ Date: 2026-09-xx   Status: accepted
 ```
 
 4. Seed `docs/risks.md` with the PCB lead-time risk and the supply-hazard risk.
-5. Commit and push.
+5. Commit and push. Then `git pull` in the laptop's clone so both copies match.
 
 **Done when:** a clean `git log` with one commit, and the decision-record template exists.
 
@@ -293,6 +329,7 @@ Date: 2026-09-xx   Status: accepted
 - [ ] Every tool version captured from the tool
 - [ ] Laptop: in the `dialout` group, `brltty` removed, Vivado licensed with its renewal date logged, JTAG cable drivers installed
 - [ ] ServoStudio installed on the Windows desktop
+- [ ] Server workbench running, laptop workbench starts with `--no-auth`
 - [ ] Repo skeleton committed, decision template in place
 
 ---
@@ -308,7 +345,7 @@ Date: 2026-09-xx   Status: accepted
 2. **Predict before you run.** Before every script or simulation, write down in one line what you expect to see. When the result differs, the difference is the lesson — work out why before changing anything.
 3. **Everything goes in the repo.** Create `ramp/` in `arm-on-zynq` with one folder per week. It is your evidence at Gate 0, and it becomes a useful appendix in W13's portfolio: "I learned this from scratch, here is the trail."
 
-**Week 0 runs alongside R1 and R2.** Do W0 S1 and S2 (inventory and ordering) in the first days of R1, because deliveries take time. Do W0 S3's Ubuntu and Python setup before R1 S1, and start the Vivado install early in R2 so it is ready for R3.
+**Week 0 runs alongside R1 and R2.** Do W0 S1 and S2 (inventory and ordering) in the first days of R1, because deliveries take time. Set up the server workbench (W0 S3 step 0) before R1 S1; R1 needs nothing else. Do the laptop's Ubuntu install in the first week, because R2 S4's serial adapter and R3's waveforms need it, and start the Vivado install early in R2 so it is ready for R4.
 
 ---
 
@@ -319,15 +356,19 @@ Date: 2026-09-xx   Status: accepted
 
 #### S1 · Environment, and your first twenty lines (2 h)
 
-1. Create the project virtual environment exactly as W0 S3 describes, and activate it with `source .venv/bin/activate` — in every new terminal, every time. Install VS Code (the official `.deb` from Microsoft, or the Snap) with the Python extension, and point it at `.venv`; it gives you inline errors, which halves the time you spend confused.
-2. In `ramp/r1/`, create `hello.py` and run it from the terminal, not the editor's run button — W2 onwards is all terminal.
+**Where:** Workbench
+
+1. Open the workbench and find your way around it: **Plan** and **Files** tabs on the left, the editor on the right, the terminal under it. Python and every package this phase needs are already installed there, so there is nothing to activate. The editor underlines syntax errors as you type, which halves the time you spend confused.
+2. In the **Files** tab, create `ramp/r1/hello.py`, type a `print`, save with <kbd>Ctrl</kbd>+<kbd>S</kbd>, and run it in the terminal pane with `python ramp/r1/hello.py`. Running from a terminal rather than a button is the habit everything from W2 onwards needs.
 3. Work through the core types by writing tiny experiments in a file, running each, and predicting the output first: integers, floats, strings, lists, dictionaries, `if`/`elif`/`else`, `for` and `while` loops, and functions with arguments and return values.
 4. Use the official Python tutorial (docs.python.org, sections 3–5) as your reference. Read one short section, then close it and write something that uses it.
-5. Set up git properly: `git config` your name and email, commit `ramp/r1/`, and push. Commit at the end of every session from now on.
+5. Set up git properly: if you didn't in W0, `git config` your name and email in the workbench terminal (`app/workbench/README.md` step 4 covers this and the SSH key). Commit `ramp/r1/` and push. Commit and push at the end of every session from now on; your ticks in `.study/progress.json` go with it.
 
 **Done when:** you can write a function that takes a list of numbers and returns the minimum, maximum and mean — without looking anything up.
 
 #### S2 · Bytes, hex and bits — the language of serial protocols (2 h)
+
+**Where:** Workbench
 
 This session matters more than any other in R1. W3 is entirely bytes.
 
@@ -362,23 +403,29 @@ print((-2).to_bytes(2, "little", signed=True).hex())
 
 #### S3 · Files and data (2 h)
 
+**Where:** Workbench
+
 1. Create `ramp/r1/packets.txt` with ten hex packets, one per line — some valid, some with a deliberately wrong checksum. Build them with your S2 function so you know which is which.
 2. Write a script that reads the file, validates each line, and prints a summary: how many valid, how many invalid, which line numbers failed.
 3. Add `try`/`except` around the parsing so a malformed line (odd number of hex digits, a stray letter) is reported rather than crashing the script. This is the same shape as W3's driver: expect bad data, handle it explicitly.
-4. Write the results to a CSV with the `csv` module: line number, packet hex, valid yes/no. Open it in Excel to check it looks right. Your W11 bench will write hundreds of these.
+4. Write the results to a CSV with the `csv` module: line number, packet hex, valid yes/no. Open it from the **Files** tab to check it looks right. Your W11 bench will write hundreds of these.
 
 **Done when:** the script handles a malformed line gracefully and writes a correct CSV.
 
 #### S4 · numpy and matplotlib (2 h)
 
+**Where:** Workbench
+
 1. Generate fake latency data — `numpy.random.normal(300, 20, 1000)` plus a few large outliers you add by hand — and save it to CSV.
 2. Load it back, then compute median, 99th percentile and maximum with `np.median`, `np.percentile` and `.max()`. Predict each before printing.
-3. Plot a histogram with matplotlib, with a title, axis labels and units, and save it as a PNG. This is the exact figure W3 S4 asks for — you are rehearsing it with fake data.
+3. Plot a histogram with matplotlib, with a title, axis labels and units, and save it as a PNG; open it from the **Files** tab to look at it. This is the exact figure W3 S4 asks for — you are rehearsing it with fake data.
 4. Add a second, differently-shaped dataset and overlay the two histograms with a legend. That overlaid figure is the one W6 calls "the best single image in your design package".
 
 **Done when:** you have a labelled, overlaid two-histogram PNG in the repo.
 
 #### S5 · Saturday: a small tool, start to finish (4 h)
+
+**Where:** Workbench
 
 Pull the week together into one program you would actually use.
 
@@ -394,10 +441,10 @@ Pull the week together into one program you would actually use.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `ModuleNotFoundError` for numpy | Virtual environment not activated | Activate `.venv` in every new terminal |
+| `ModuleNotFoundError` for numpy | On the laptop: workbench not started from inside `.venv` | Restart it after `source .venv/bin/activate`; the server workbench has numpy already |
 | Checksum comes out negative | Forgot `& 0xFF` after `~` | Python integers are unbounded; mask to a byte |
 | `ValueError: non-hexadecimal number` | Stray character or odd digit count | That is the malformed-line case — catch it |
-| Plot window never appears | Running headless or blocked by a script end | Save to PNG with `plt.savefig`; do not rely on `show()` |
+| Plot window never appears | The workbench terminal has no screen to draw on | Save to PNG with `plt.savefig` and open it from the **Files** tab; do not rely on `show()` |
 
 ---
 
@@ -409,6 +456,8 @@ Pull the week together into one program you would actually use.
 
 #### S1 · Classes and exceptions (2 h)
 
+**Where:** Workbench
+
 1. Read the classes section of the Python tutorial, then build a class that models something simple you already understand — a bank account, a temperature log — with `__init__`, a few methods and some internal state.
 2. Define your own exceptions by subclassing `Exception`, raise them for invalid operations, and catch them. The W3 driver defines `BusTimeout`, `ChecksumError` and `StatusError` in exactly this way.
 3. Rewrite R1's packet functions as a `Packet` class: construct from bytes, expose `id`, `instr`, `params` and `checksum` attributes, and raise a custom `ChecksumError` from the constructor if the packet is invalid.
@@ -418,7 +467,9 @@ Pull the week together into one program you would actually use.
 
 #### S2 · Testing with pytest (2 h)
 
-1. Install pytest (it is already in the venv from W0) and write `ramp/r2/test_packet.py` with at least six tests: a valid packet parses, each field is correct, a bad checksum raises, a truncated packet raises, an empty input raises, and a round trip (build → bytes → parse) preserves everything.
+**Where:** Workbench
+
+1. pytest is already installed in the workbench. Write `ramp/r2/test_packet.py` with at least six tests: a valid packet parses, each field is correct, a bad checksum raises, a truncated packet raises, an empty input raises, and a round trip (build → bytes → parse) preserves everything.
 2. Run `pytest -v`. Break your code on purpose and watch a test fail; restore it and watch it pass. A test you have never seen fail proves nothing.
 3. Use `pytest.raises` for the error cases, and `@pytest.mark.parametrize` to run one test over several packets.
 4. Learn fixtures by writing one that provides a known-good packet to several tests. Fixtures are the backbone of W11's bench, so meet them here in a harmless setting.
@@ -427,9 +478,11 @@ Pull the week together into one program you would actually use.
 
 #### S3 · Your bench supply from Python (2 h)
 
+**Where:** Workbench · Bench. A supply on the LAN works from the server workbench; a USB-only supply needs the laptop workbench.
+
 You already know SCPI; this session puts it inside a Python class.
 
-1. Find the supply's VISA address with `pyvisa.ResourceManager("@py").list_resources()` and send `*IDN?`. A LAN-connected supply shows up as a `TCPIP::` address with no further setup; a USB one needs the udev rule from W0 S3 first.
+1. Find the supply's VISA address and send `*IDN?`. A LAN-connected supply works from the server workbench: give it the address directly, `TCPIP::<supply IP>::INSTR`, because `list_resources()` discovers instruments by broadcast and the workbench's container can't see broadcasts. A USB-only supply has to be done in the laptop workbench, after the udev rule from W0 S3; there `pyvisa.ResourceManager("@py").list_resources()` finds it.
 2. Write `ramp/r2/psu.py`:
 
 ```python
@@ -465,7 +518,9 @@ Adjust the SCPI commands to your supply's manual.
 
 #### S4 · Serial ports and timing (2 h)
 
-1. Plug in the 3.3 V USB-UART adapter with TX jumpered to RX. Find its stable name under `/dev/serial/by-id/` (or check `dmesg | tail`), then open it with pyserial at 115200 baud, write some bytes, and read them back. A `Permission denied` error means you are not yet in the `dialout` group — or have not logged out and back in since joining it.
+**Where:** Laptop workbench · Bench. The USB-UART adapter is plugged into the laptop.
+
+1. Open the laptop workbench (`git pull` first) and plug in the 3.3 V USB-UART adapter with TX jumpered to RX. Find its stable name under `/dev/serial/by-id/` (or check `dmesg | tail`), then open it with pyserial at 115200 baud, write some bytes, and read them back. A `Permission denied` error means you are not yet in the `dialout` group — or have not logged out and back in since joining it.
 2. Measure the round-trip time of one byte with `time.perf_counter()`, 1000 times, and plot the histogram using your R1 code. This is a rehearsal for W3 S4 with real hardware underneath.
 3. Repeat at 1,000,000 baud, the servo bus rate, if the adapter supports it. Compare the two histograms and explain the difference in the medians — most of it is not the wire. That sentence is the W3 insight, arriving three weeks early.
 4. Set a read timeout, remove the jumper, and confirm that `read()` returns short rather than hanging. Handling "no reply" is half of W3's driver.
@@ -473,6 +528,8 @@ Adjust the SCPI commands to your supply's manual.
 **Done when:** you have two overlaid loopback histograms and a written explanation of why the medians differ by less than the bit rates suggest.
 
 #### S5 · Saturday: an instrument-backed test (4 h)
+
+**Where:** Workbench · Bench. Same rule as S3: the laptop workbench if the supply is USB-only. The fake-supply tests run anywhere.
 
 1. Write a pytest suite in `ramp/r2/test_bench.py` that uses your `Psu` class through a **session fixture**: the fixture configures the supply, yields it, and switches it off in teardown.
 2. Tests, all with a resistor load: output voltage within 1 % of setpoint at three settings; current limit respected (choose a resistor so the limit is reached); output reads zero after `off()`.
@@ -487,7 +544,8 @@ Adjust the SCPI commands to your supply's manual.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `VisaIOError` timeout | Wrong address, or a command the supply does not know | Check `list_resources()`; check the manual's command syntax |
-| USB supply not listed at all | No udev permission for the USB-TMC device | Add the udev rule from the pyvisa-py docs, replug; or use the supply's LAN port |
+| USB supply not listed at all | Running in the server workbench, or no udev permission for the USB-TMC device | Use the laptop workbench and add the udev rule from the pyvisa-py docs; or use the supply's LAN port |
+| LAN supply times out from the server workbench | Address guessed by discovery, or the server can't reach the instrument's subnet | Use `TCPIP::<IP>::INSTR` directly; `ping` the IP from the workbench terminal |
 | `Permission denied` on `/dev/ttyUSB0` | Not in the `dialout` group | `sudo usermod -aG dialout $USER`, then log out and in |
 | Serial port appears, then disappears | `brltty` claimed the device | `sudo apt remove brltty` |
 | Loopback reads nothing | Jumper missing, or wrong port | Check the port name; confirm TX and RX are joined |
@@ -500,9 +558,11 @@ Adjust the SCPI commands to your supply's manual.
 
 **Goal:** enough asyncio to read cocotb testbenches, the digital-logic ideas Verilog assumes, and your first simulated modules.
 **You will have by Sunday:** a counter and an adder in Verilog, each verified by a plain testbench and by a cocotb test.
-**Install before S3:** Icarus Verilog and GTKWave (or Verilator), per W0 S3.
+**Tools:** Icarus Verilog, Verilator and cocotb are already in the server workbench. To look at waveforms, open the `.vcd` in GTKWave on the laptop: run the simulation in the laptop workbench and `gtkwave file.vcd &` opens a window on the laptop's screen.
 
 #### S1 · asyncio, just enough for cocotb (2 h)
+
+**Where:** Workbench
 
 cocotb testbenches are Python `async` functions. You do not need all of asyncio — just the shape.
 
@@ -531,6 +591,8 @@ asyncio.run(main())
 
 #### S2 · Digital logic, on paper (2 h)
 
+**Where:** Bench. Paper and pencil; commit the photos from the workbench.
+
 Verilog describes hardware, not steps. These ideas have to be in place first, or Verilog looks like a strange programming language.
 
 1. **Combinational logic:** outputs depend only on current inputs. Draw a 2-to-1 multiplexer and a 4-bit adder as gates or blocks.
@@ -542,6 +604,8 @@ Verilog describes hardware, not steps. These ideas have to be in place first, or
 **Done when:** your counter timing diagram and your `FF FF` detector state diagram are drawn and committed as photos.
 
 #### S3 · First Verilog: combinational modules in simulation (2 h)
+
+**Where:** Workbench · Laptop workbench. Write and simulate in the workbench; open the waveform in GTKWave from the laptop workbench.
 
 1. Write `ramp/r3/mux2.sv` and `adder4.sv` using `assign` statements and an `always_comb` block. Keep them tiny.
 2. Write a plain SystemVerilog testbench that drives every input combination, prints the outputs with `$display`, and dumps a waveform:
@@ -564,12 +628,14 @@ module tb_adder4;
 endmodule
 ```
 
-3. Compile and run: `iverilog -g2012 -o sim adder4.sv tb_adder4.sv && vvp sim`, then open `adder4.vcd` in GTKWave and find one addition in the waveform.
+3. Compile and run in the workbench terminal: `iverilog -g2012 -o sim adder4.sv tb_adder4.sv && vvp sim`. Then commit, pull on the laptop, re-run it in the laptop workbench, and open the waveform with `gtkwave adder4.vcd &`. Find one addition in it.
 4. Break the adder on purpose (drop the carry) and watch the testbench catch it.
 
 **Done when:** the testbench reports failures for the broken adder and none for the correct one, and you have seen the waveform.
 
 #### S4 · Sequential Verilog: the counter (2 h)
+
+**Where:** Workbench · Laptop workbench. As in S3: simulate anywhere, view the waveform in GTKWave on the laptop.
 
 1. Write `ramp/r3/counter32.sv` — this is the same module W1 S3 uses, so you are building W1's first piece now:
 
@@ -588,13 +654,15 @@ endmodule
 
 2. Understand `<=` (non-blocking, used in `always_ff`) against `=` (blocking, used in `always_comb`). The rule to memorise: **flip-flops get `<=`, combinational logic gets `=`.** Break it on purpose later and see what goes wrong.
 3. Write a plain testbench with a generated clock (`always #5 clk = ~clk;`), hold reset for two cycles, release it, run ten cycles, and print the count. **Predict the number first.** If you are off by one, work out whether reset released before or after a clock edge — that off-by-one is the lesson, and it is the same one that bites the turnaround timing in W6.
-4. Look at the waveform in GTKWave and match it against your paper timing diagram from S2.
+4. Look at the waveform in GTKWave on the laptop, as in S3, and match it against your paper timing diagram from S2.
 
 **Done when:** your prediction of the count matches the simulation, and you can explain why.
 
 #### S5 · Saturday: your first cocotb tests (4 h)
 
-1. Install cocotb (already in the venv) and set up `ramp/r3/cocotb_counter/` with a Makefile:
+**Where:** Workbench
+
+1. cocotb is already installed in the workbench. Set up `ramp/r3/cocotb_counter/` with a Makefile:
 
 ```makefile
 SIM ?= icarus
@@ -624,7 +692,7 @@ async def counts_after_reset(dut):
     assert int(dut.count.value) == predicted, f"got {int(dut.count.value)}"
 ```
 
-3. Run `make`. Make the assertion fail on purpose, read cocotb's error output, and fix it. Learning to read cocotb's failure messages now saves hours in W5.
+3. Run `make` in the workbench terminal from that folder. Make the assertion fail on purpose, read cocotb's error output, and fix it. Learning to read cocotb's failure messages now saves hours in W5.
 4. Add three more tests: the count holds at zero while reset is held; reset mid-count returns to zero; the counter wraps from `0xFFFFFFFF` to `0`. For the wrap test you cannot wait four billion cycles — work out how to test it anyway (hint: parameterise the width, or force a value). Working that out is a real verification skill.
 5. Write the adder's cocotb test too, checking all 256 combinations in a Python loop. Compare it with the plain SystemVerilog testbench: which is easier to extend? Write two sentences on it.
 
@@ -648,8 +716,11 @@ async def counts_after_reset(dut):
 **Setup:** set the PYNQ-Z2 boot jumper to **JTAG** for these standalone exercises, and program the PL from Vivado's Hardware Manager over the micro-USB cable — which needs the JTAG cable drivers from W0 S3. W1 goes back to SD boot and PYNQ.
 **Clock:** the PYNQ-Z2 feeds a 125 MHz clock into the PL. Take its pin name from the board's master XDC, along with the LEDs, buttons and a Pmod pin.
 **Safety:** your USB-UART adapter must be a **3.3 V** one. PYNQ-Z2 PL pins are not 5 V tolerant. Connect grounds first.
+**Workflow:** write the RTL and its cocotb tests in the server workbench, push, then `git pull` in the laptop clone and add the files to Vivado **from the laptop clone** (Add Sources, without *Copy sources into project*) so Vivado builds exactly what you tested. Keep Vivado's project folder under `build/` and out of git.
 
 #### S1 · First bitstream: a blinking LED (2 h)
+
+**Where:** Vivado · Laptop workbench · Bench
 
 1. Create a Vivado project for the PYNQ-Z2 part, add your `counter32.sv` and a top module that connects the counter's bit 26 to LED 0. At 125 MHz, bit 26 toggles about every half-second — work out the exact period before building.
 2. Copy the PYNQ-Z2 master XDC into the project and uncomment only the clock, LED 0 lines.
@@ -661,15 +732,19 @@ async def counts_after_reset(dut):
 
 #### S2 · Buttons, synchronisers and debouncing (2 h)
 
+**Where:** Workbench · Vivado · Bench. Write the debouncer and its cocotb test in the workbench; build and program in Vivado.
+
 1. Connect button 0 directly to LED 0 and check it works. Then connect it to a counter that increments on each press, shown in binary on the four LEDs. Press it ten times and count what the LEDs show — it will likely jump by more than one per press. That is contact bounce, and you are about to fix it.
 2. Add a **two-flip-flop synchroniser** on the button input — the metastability protection from R3 S2 — then a debouncer: a counter that only accepts a new button state after it has been stable for about 10 ms. At 125 MHz, compute the count for 10 ms.
 3. Add an edge detector so the press counter increments once per press, not once per clock while held.
-4. Simulate the debouncer in cocotb before building: drive a bouncy input (a few fast toggles, then steady) and check it outputs one clean edge.
+4. Simulate the debouncer in cocotb in the workbench before building: drive a bouncy input (a few fast toggles, then steady) and check it outputs one clean edge.
 5. Build and test on the board. Ten presses should now read exactly ten.
 
 **Done when:** ten presses give exactly ten counts, and the debouncer has a passing cocotb test.
 
 #### S3 · UART transmitter in simulation (2 h)
+
+**Where:** Workbench
 
 1. Read about the UART frame: idle high, one start bit (low), eight data bits least-significant first, one stop bit (high). Draw one byte — `0x48`, the letter H — as a timing diagram.
 2. Write `ramp/r4/uart_tx.sv` with this interface, which deliberately matches W5's:
@@ -694,18 +769,22 @@ module uart_tx (
 
 #### S4 · UART on the board (2 h)
 
+**Where:** Vivado · Laptop workbench · Bench. The serial terminal runs in the laptop workbench, where the USB-UART adapter is.
+
 1. Compute `clks_per_bit` for 115200 baud at 125 MHz, and the actual baud rate that produces. Work out the percentage error. (UART tolerates a few percent; yours will be far smaller.)
 2. Build a top module that sends the byte `0x48` ("H") once per button press, using the debounced press from S2 as `valid`.
 3. Constrain `tx` to a Pmod pin from the master XDC. Wire it to the USB-UART adapter's **RX**, and connect **ground to ground** before anything else.
-4. Open a serial terminal on the laptop at 115200 8N1 — `python -m serial.tools.miniterm /dev/ttyUSB0 115200` needs nothing extra installed — and press the button. An `H` should appear.
+4. Open a serial terminal in the laptop workbench's terminal at 115200 8N1 — `python -m serial.tools.miniterm /dev/serial/by-id/<your adapter> 115200` needs nothing extra installed — and press the button. <kbd>Ctrl</kbd>+<kbd>]</kbd> quits miniterm. An `H` should appear.
 5. Put the scope on the `tx` pin and capture one byte. Measure the bit period and match the waveform against your R4 S3 drawing, bit by bit. This is exactly the W2 S5 skill, on a signal you designed.
 
 **Done when:** an `H` appears on each press, and the scope capture matches your drawing.
 
 #### S5 · Saturday: "Hello" from a state machine (4 h)
 
+**Where:** Workbench · Vivado · Laptop workbench. Simulate in the workbench first, then build in Vivado and watch the terminal on the laptop.
+
 1. Extend the design to send a whole string — `Hello\r\n` — on each press. You need a small ROM of bytes, an index counter, and a state machine that waits for `ready`, sends the next byte, and stops at the end. This is the transmit side of W5's packet framer in miniature.
-2. Simulate the whole thing in cocotb first. Reuse your S3 decoder to collect the bytes and assert the string arrives intact.
+2. Simulate the whole thing in cocotb in the workbench first, then push and pull on the laptop before building. Reuse your S3 decoder to collect the bytes and assert the string arrives intact.
 3. Build, program and test on the board.
 4. Add a second mode, selected by a switch, that sends the string at 1,000,000 baud instead — `clks_per_bit` of 125. Does your adapter keep up? Record the result either way; it tells you whether the adapter is usable as a bus probe later.
 5. Write `ramp/r4/README.md`: what you built, the waveforms, and the three bugs you hit and how you found each. Those bug notes are the first entries in what becomes your W13 STAR stories.
@@ -732,6 +811,8 @@ module uart_tx (
 
 #### S1 · UART receiver in simulation (2 h)
 
+**Where:** Workbench
+
 1. Write `ramp/r5/uart_rx.sv`. Put the two-flip-flop synchroniser on the input first. Detect the falling edge of the start bit, wait half a bit period, check it is still low, then sample each data bit at its centre and check the stop bit.
 2. Output the byte with a one-cycle `valid` pulse, and flag a framing error if the stop bit is low.
 3. Test it in cocotb by connecting your R4 transmitter's output straight to the receiver's input and checking every byte from `0x00` to `0xFF` round-trips.
@@ -741,8 +822,10 @@ module uart_tx (
 
 #### S2 · Echo on the board (2 h)
 
+**Where:** Vivado · Laptop workbench · Bench
+
 1. Build a top module: receiver from a Pmod pin (wired to the adapter's TX), transmitter to another Pmod pin (wired to the adapter's RX), each received byte sent straight back.
-2. Type in the terminal and watch your characters echo. Paste a long paragraph and check nothing is dropped.
+2. Run miniterm in the laptop workbench as in R4 S4, type, and watch your characters echo. Paste a long paragraph and check nothing is dropped.
 3. Add a small FIFO between receiver and transmitter, or explain in writing why you don't need one for an echo. (Hint: compare how long it takes to receive a byte with how long it takes to send one.)
 4. Scope both lines at once and measure the delay from the end of a received byte to the start of its echo. That is your first latency measurement on logic you designed, and the same shape as W10's.
 
@@ -750,9 +833,11 @@ module uart_tx (
 
 #### S3 · Your first AXI-Lite peripheral (2 h)
 
+**Where:** Vivado · PYNQ Jupyter
+
 This session is a small preview of W1 and W6, and it is allowed to be rough.
 
-1. Set the boot jumper back to **SD** and boot PYNQ. Confirm Jupyter works (W1 S1 covers this in detail).
+1. Set the boot jumper back to **SD** and boot PYNQ, with the board on your router's network so the server workbench can reach it too. Confirm Jupyter works (W1 S1 covers this in detail).
 2. In Vivado, use **Tools → Create and Package New IP → AXI4 peripheral** to generate a template with four 32-bit registers. Read the generated Verilog and find where a write from the processor lands in a register, and where a read is answered. Annotate those lines with comments in your own words.
 3. Build a block design with the Zynq PS, your IP on `M_AXI_GP0`, and the automation connections. Generate the bitstream and export the `.hwh` file — W1 S4 explains the file names.
 4. Load it in a notebook and read and write the registers:
@@ -770,8 +855,10 @@ print(hex(mm.read(0x0)), hex(mm.read(0x4)))
 
 #### S4 · Joining the two worlds (2 h)
 
+**Where:** Vivado · Laptop workbench · PYNQ Jupyter
+
 1. Combine S2 and S3: put the echo UART inside your AXI-Lite IP, and make register 1 a **count of bytes received**, readable from Python.
-2. Type characters in the serial terminal and watch the count rise in the notebook.
+2. Type characters in miniterm in the laptop workbench and watch the count rise in the notebook.
 3. Add a write: register 2 sets a byte that the IP sends out of the UART when written. You now have Python commanding a UART through your own hardware — which is precisely what W6's `DefaultIP` driver does to the servo bus.
 4. Write down every place in this design where two clocks meet, or an asynchronous signal enters. Everything runs on one clock except the UART input — which your synchroniser handles. That is the CDC answer W5 asks for, in miniature.
 
@@ -779,9 +866,11 @@ print(hex(mm.read(0x0)), hex(mm.read(0x4)))
 
 #### S5 · Saturday: Gate 0, honestly (4 h)
 
+**Where:** Workbench · PYNQ Jupyter · KiCad. Gate 0 items 1–8 and 10 are workbench tasks; item 9 is on the board; the optional KiCad hour is on the laptop.
+
 **First, one optional hour on KiCad.** Work through the KiCad getting-started tutorial: draw a small schematic, assign footprints, lay out a tiny board. W7 is not the week to meet the interface for the first time.
 
-Then sit Gate 0. Do each item **without looking anything up**, timed, and record pass or fail honestly in `ramp/gate0.md`.
+Then sit Gate 0. Do each item **without looking anything up**, timed, and record pass or fail honestly in `ramp/gate0.md`. Do items 1–8 in the server workbench with the **Plan** tab closed, item 9 in Jupyter on the board, and item 10 in the workbench editor with the master XDC open.
 
 | # | Task | Time limit | Tests readiness for |
 |---|---|---|---|
@@ -822,23 +911,26 @@ Finally, write a half-page in `ramp/gate0.md` on what was hardest, what surprise
 
 **Competency:** SoC architecture literacy and reproducible builds.
 **Prerequisites:** W0 complete; microSD written and checksummed.
-**Bench setup:** PYNQ-Z2, Ethernet to your router or direct to the laptop, scope with a short ground lead, bench supply at 12 V / 1 A limit for the barrel jack.
+**Bench setup:** PYNQ-Z2, Ethernet to your router (so the server workbench can reach it; a direct cable to the laptop only works from the laptop), scope with a short ground lead, bench supply at 12 V / 1 A limit for the barrel jack.
 
 #### S1 · Boot the board and prove the base overlay (2 h)
 
+**Where:** Bench · Workbench · PYNQ Jupyter. SSH to the board from the workbench terminal.
+
 1. Set the board jumpers: boot source to **SD**, power source to **REG** if you are feeding the barrel jack, or **USB** if powering from the 2 A adapter. Photograph the jumper positions — you will change them later and want the reference.
 2. Insert the microSD, connect Ethernet, apply power. Watch the boot LEDs: the done LED asserts, then the four user LEDs flash in sequence when PYNQ's boot service comes up. If the LEDs never flash, the image is bad — reflash before debugging anything else.
-3. Find the board. On a DHCP network try `http://pynq:9090`; on a direct laptop connection (a USB-Ethernet adapter is fine), give that interface a static address of `192.168.2.1/24` in Ubuntu's network settings — IPv4, Manual, no gateway — and browse to `http://192.168.2.99:9090`. Default credentials are `xilinx` / `xilinx`.
-4. SSH in and capture the baseline:
+3. Find the board. On your router, look up the address it was given (the router's DHCP client list, or try `http://pynq:9090` from the laptop) and give it a DHCP reservation so the address never changes. Write it down: the server workbench may not resolve the name `pynq`, so these steps use `PYNQ_IP`. On a direct laptop connection (a USB-Ethernet adapter is fine), give that interface a static address of `192.168.2.1/24` in Ubuntu's network settings — IPv4, Manual, no gateway — and browse to `http://192.168.2.99:9090`. Default credentials are `xilinx` / `xilinx`.
+4. SSH in from the workbench terminal and capture the baseline. Copy the workbench's key to the board first so you are not typing the password every time:
 
 ```bash
-ssh xilinx@pynq
+ssh-copy-id xilinx@PYNQ_IP
+ssh xilinx@PYNQ_IP
 uname -a; cat /etc/os-release
 python3 -c "import pynq; print(pynq.__version__)"
 free -h; df -h /
 ```
 
-Paste that into `docs/pynq-baseline.md`.
+Paste that into `docs/pynq-baseline.md`, open beside the terminal in the editor.
 
 5. Run the base-overlay notebooks under `base/board/`: LEDs, buttons, switches, and one Pmod example. Confirm each physically — press the button, see the LED. This proves the image, the bitstream loading path and the PL power rails in one go.
 6. Read the PYNQ v3.1 changelog and release notes. Write a short list in `docs/pynq-baseline.md` of what differs from the v3.0-era tutorials you will find online. Two that bite: the Python version moved, and some `pynq.lib` import paths changed.
@@ -846,6 +938,8 @@ Paste that into `docs/pynq-baseline.md`.
 **Done when:** you can toggle a physical LED from a Jupyter cell, and the baseline file is committed.
 
 #### S2 · The PS/PL split, read properly (2 h)
+
+**Where:** Workbench. Reading, then the answers in `docs/ps-pl-notes.md`.
 
 Reading, not typing. Take notes by hand; you will sketch this from memory on Saturday.
 
@@ -863,6 +957,8 @@ Question 4's last item matters for safety and returns in W12 — a bitstream rel
 **Done when:** `docs/ps-pl-notes.md` exists with answers to all four questions, one page.
 
 #### S3 · A scripted overlay, part one: write the Tcl (2 h)
+
+**Where:** Workbench · Laptop workbench. Write the RTL, Tcl and XDC in the workbench, push, then pull on the laptop and run the build there.
 
 The rule for the whole project: **no GUI clicks that are not also in a script.** If you explore in the GUI, export the Tcl afterwards and keep the script as the source of truth.
 
@@ -938,9 +1034,13 @@ wait_on_run impl_1
 vivado -mode batch -source build.tcl
 ```
 
+5. Commit and push from the workbench, then in the laptop workbench `git pull`, `cd overlay/hello` and run that command. Vivado runs headless in batch mode, so the laptop workbench's terminal is all it needs; the Vivado window is only for looking at the result.
+
 **Done when:** the Tcl runs to the end of synthesis without errors. Implementation can finish while you sleep.
 
 #### S4 · A scripted overlay, part two: load it and read it (2 h)
+
+**Where:** Laptop workbench · PYNQ Jupyter. The bitstream is on the laptop, so copy it to the board from the laptop workbench.
 
 1. Collect the two artifacts. Paths for 2020.2 and later:
 
@@ -952,8 +1052,8 @@ build/hello/hello.gen/sources_1/bd/system/hw_handoff/system.hwh
 2. Rename both to the **same base name** and copy to the board. PYNQ matches `.hwh` to `.bit` by filename; a mismatch gives you a confusing "no such IP" error later.
 
 ```bash
-scp system_wrapper.bit xilinx@pynq:~/overlays/hello/hello.bit
-scp system.hwh          xilinx@pynq:~/overlays/hello/hello.hwh
+scp system_wrapper.bit xilinx@PYNQ_IP:~/overlays/hello/hello.bit
+scp system.hwh          xilinx@PYNQ_IP:~/overlays/hello/hello.hwh
 ```
 
 3. Load and inspect from Python:
@@ -986,6 +1086,8 @@ Expect the two to agree within a percent or two — the error is your `sleep` an
 
 #### S5 · Saturday: instruments on the board (4 h)
 
+**Where:** Bench · PYNQ Jupyter · Laptop workbench. The clean-checkout rebuild runs on the laptop because it needs Vivado.
+
 1. **Board current.** Feed the barrel jack from the bench supply (check your board's accepted input range before choosing the voltage; PYNQ-Z2 documents a wide input) with a 1 A limit. Record supply current at three points: (a) Linux booted, PL empty; (b) base overlay loaded; (c) your `hello` overlay loaded. Three numbers, one table.
 2. **PL clock on a pin.** Probe the Pmod pin carrying `fclk_probe` with the scope, ground lead as short as you can make it — use the probe's spring ground, not the long flying lead, or you will measure your ground loop instead of the edge.
    - Measure frequency and compare to `Clocks.fclk0_mhz`.
@@ -1009,9 +1111,9 @@ print(f"{n/(time.time()-t0):.1f} fps at "
 cap.release()
 ```
 
-Also run `v4l2-ctl --list-formats-ext -d /dev/video0` and save the output — it lists which resolution and format combinations the camera will actually negotiate, which is the input to W4's camera bandwidth budget. Note the CPU load during capture (`top` in another shell); MJPEG decode on the A9 is not free.
+Also run `v4l2-ctl --list-formats-ext -d /dev/video0` and save the output — it lists which resolution and format combinations the camera will actually negotiate, which is the input to W4's camera bandwidth budget. Note the CPU load during capture (`top` in an SSH session from the workbench terminal); MJPEG decode on the A9 is not free.
 4. **Sketch the Zynq-7020 from memory** — PS with its two A9s, DDR controller, peripherals; the PL; the GP/HP/ACP ports between them; the FCLKs. Then open UG585 and mark what you got wrong in a different colour. Photograph both and put them in `docs/ps-pl-notes.md`. The corrections are the useful part.
-5. Write `overlay/hello/README.md` properly: what it contains, how to rebuild from a clean checkout, which Vivado version it was proven on, and what the counter check proves. Then test it — move to a clean directory, clone your own repo, and run the rebuild command. If it fails, fix the README, not your memory.
+5. Write `overlay/hello/README.md` properly: what it contains, how to rebuild from a clean checkout, which Vivado version it was proven on, and what the counter check proves. Then test it on the laptop, which has Vivado: in the laptop workbench, clone your own repo into a clean directory such as `/tmp/clean`, and run the rebuild command there. If it fails, fix the README, not your memory.
 
 **Done when:** the clean-checkout rebuild works, because that is the actual deliverable.
 
@@ -1052,6 +1154,8 @@ Also run `v4l2-ctl --list-formats-ext -d /dev/video0` and save the output — it
 
 #### S1 · Inventory the servos with ServoStudio (2 h)
 
+**Where:** Windows desktop · Bench
+
 The kit arrives assembled, so IDs and baud are already set. The job is to **verify and record** the factory configuration, not to reassign it — and to capture the protection settings W12 will build on.
 
 1. **Rail check:** bench supply at 12.0 V on its display, **limit 2 A**, output off.
@@ -1078,6 +1182,8 @@ The kit arrives assembled, so IDs and baud are already set. The job is to **veri
 
 #### S2 · LeRobot calibration and first teleoperation (2 h)
 
+**Where:** Laptop workbench · Bench. LeRobot, the BusLinkers and the cameras are all on the laptop.
+
 1. **Rail check.** 12.0 V on the display, both arms. Check the `LEADER` / `FOLLOWER` flag on each cable against the BusLinker it goes to.
 2. Follow **Hiwonder's SO-ARM101 LeRobot tutorial** for installation, not only the upstream LeRobot docs — they assume Feetech servos. While installing, find and write down how the HX servos are driven: upstream LeRobot's Feetech motor-bus code, a Hiwonder-supplied motor-bus class, or a fork. Put the answer and the evidence (file path, package name, commit) at the top of `docs/servo-notes.md`. It is the single most useful fact for W3, because it tells you how Feetech-like the protocol really is.
 3. Identify which BusLinker is which:
@@ -1086,8 +1192,8 @@ The kit arrives assembled, so IDs and baud are already set. The job is to **veri
 lerobot-find-port        # check --help; the entry point name has changed between releases
 ```
 
-Back on the laptop from here on. Record the two ports by their stable names under `/dev/serial/by-id/` — `ttyUSB0` and `ttyUSB1` can swap between reboots — and tape a label on each BusLinker. If the tool asks for a port, give it the `/dev/serial/by-id/...` path.
-4. Run calibration for the follower, then the leader, following the prompts to move each joint through its range. Save the calibration files into the repo under `sw/calib/` — they are per-arm data and you will regret regenerating them.
+Back on the laptop from here on, in the laptop workbench's terminal. Record the two ports by their stable names under `/dev/serial/by-id/` — `ttyUSB0` and `ttyUSB1` can swap between reboots — and tape a label on each BusLinker. If the tool asks for a port, give it the `/dev/serial/by-id/...` path.
+4. Run calibration for the follower, then the leader, following the prompts in the laptop workbench's terminal to move each joint through its range. Save the calibration files into the repo under `sw/calib/` — they are per-arm data and you will regret regenerating them.
 5. Teleoperate: move the leader by hand, watch the follower track. Keep the follower's workspace clear. Stop at the first sign of a joint fighting itself.
 6. Record a two-minute LeRobot dataset with the kit's wrist and external cameras attached to the **laptop** (not the board yet). The purpose is to see the whole pipeline work once, end to end, before you start replacing pieces of it. Note the dataset path and frame counts.
 7. Write down three qualitative observations about the teleop feel: lag, deadband, any joint that overshoots. These become hypotheses that W3's latency numbers confirm or kill.
@@ -1095,6 +1201,8 @@ Back on the laptop from here on. Record the two ports by their stable names unde
 **Done when:** a two-minute dataset exists and both arms survived.
 
 #### S3 · Current characterisation, follower (2 h)
+
+**Where:** Bench · Laptop workbench. The scripted sweep runs in the laptop workbench.
 
 The goal is a table that W4's power budget and W7's part selection are built on. Every number comes from the bench supply's own readout, with the limit set as a backstop.
 
@@ -1118,6 +1226,8 @@ The goal is a table that W4's power budget and W7's part selection are built on.
 
 #### S4 · Current characterisation, leader; mechanical survey (2 h)
 
+**Where:** Bench
+
 1. **Rail check**, then leader on 12 V, **limit 3 A**. Record: torque off; torque on idle; being back-driven by hand through its full range. The leader is normally back-driven with torque off, so the middle row matters less — but W7 has to size the leader rail's load switch and shunt for the worst case someone might command, so record it anyway.
 2. Mechanical survey, torque off on both arms, written as observations with numbers where you can get them:
    - **Backlash at the gripper:** hold the base, wiggle the gripper, estimate the free play in millimetres at the tip. Do it for each joint locked in turn if you can. Hiwonder markets the HX-30HM as zero-backlash; whatever play you feel is therefore in the printed parts, the horns or the gear train downstream of the encoder. Note it now — W11 measures it properly and tests the claim.
@@ -1128,6 +1238,8 @@ The goal is a table that W4's power budget and W7's part selection are built on.
 **Done when:** leader table complete and the mechanical survey is in `docs/arm-bringup.md` with photos.
 
 #### S5 · Saturday: the bus on the scope (4 h)
+
+**Where:** Bench · Workbench. Capture at the bench; write the report in the workbench.
 
 This is the session that feeds W3, W5 and W7, so take the captures carefully and save the raw waveform files, not just screenshots.
 
@@ -1140,7 +1252,7 @@ This is the session that feeds W3, W5 and W7, so take the captures carefully and
 3. Zoom on the **turnaround**: the gap between the master's last stop bit and the first bit of the servo's reply. Measure it. This is the timing your RTL's direction-pin logic has to respect in W5, and the number you compare its simulation against.
 4. Repeat all of it on the **leader** bus. The leader chain may be shorter or differently loaded; do not assume the numbers transfer.
 5. Capture one **collision or error case** deliberately if you can produce one safely — for instance, pinging an ID that does not exist and observing the timeout gap. Knowing what "no reply" looks like on the wire saves an hour in W6.
-6. Write `docs/servo-power-and-bus-report.md`, two pages:
+6. Save the waveform files and screenshots into `docs/` on the laptop and push them, then write `docs/servo-power-and-bus-report.md` in the server workbench, two pages:
    - Current tables, both arms, with the stall caveat and the measured step duration.
    - Scope shots: one packet, one turnaround zoom, one edge with ringing, per bus.
    - A short "what this constrains" section naming the W4 and W7 decisions each number feeds. That section is what makes it a report rather than a log.
@@ -1193,8 +1305,10 @@ This is the session that feeds W3, W5 and W7, so take the captures carefully and
 
 #### S1 · Capture and dissect real traffic (2 h)
 
+**Where:** Laptop workbench · Bench. PulseView and LeRobot run on the laptop; save captures into the laptop's copy of the repo.
+
 1. Probe both buses with the logic analyser: one channel per bus, common ground, sample at ≥ 8 MS/s. Configure a UART decoder at 1 000 000 baud, 8N1, on each channel.
-2. Start LeRobot teleop and capture 2–3 seconds. Stop and save the raw capture into `docs/captures/` — committed, not left on the laptop.
+2. Start LeRobot teleop in the laptop workbench's terminal and capture 2–3 seconds in PulseView. Stop and save the raw capture into `docs/captures/` in the laptop's clone, then commit and push it — committed, not left on the laptop.
 3. Open Hiwonder's protocol document next to the capture. Find one complete transaction and decode it **by hand**, byte by byte, into a table. The table below is the layout to *expect* if the HX protocol follows the Dynamixel 1.0 / Feetech lineage its instruction names (Write, SyncWrite, RegWrite) suggest — treat every row as a hypothesis until both the document and the capture agree:
 
 | Offset | Byte | Meaning |
@@ -1217,7 +1331,9 @@ If the header, length rule or checksum differ from this, nothing about the metho
 
 #### S2 · The driver core: framing, ping, read, write (2 h)
 
-Write `sw/hx_min/bus.py`. Keep it dependency-light — this code gets reused in W6 against the PL backend, so no LeRobot imports. The constants at the top are the lineage defaults; **replace each one with the value from Hiwonder's document** and cite the section in a comment. If S1 found a different header or checksum, change `frame()` and `_read_status()` to match — the rest of the class does not care.
+**Where:** Laptop workbench. The driver talks to a BusLinker, so write and run it on the laptop.
+
+Write `sw/hx_min/bus.py` in the laptop workbench, so you can run it against the follower's BusLinker as you go. Keep it dependency-light — this code gets reused in W6 against the PL backend, so no LeRobot imports. The constants at the top are the lineage defaults; **replace each one with the value from Hiwonder's document** and cite the section in a comment. If S1 found a different header or checksum, change `frame()` and `_read_status()` to match — the rest of the class does not care.
 
 ```python
 import serial
@@ -1294,6 +1410,8 @@ class HxBus:
 
 #### S3 · Registers, byte order, sign, sync-write, and the memory map (2 h)
 
+**Where:** Laptop workbench. The hardware-free unit tests also pass in the server workbench, which is a useful check that they really need no hardware.
+
 1. **Settle the byte order empirically.** Move joint 1 to roughly mid-range by hand, read the two position bytes, and see which interpretation gives a sensible number near 2047 that changes smoothly as you move the joint:
 
 ```python
@@ -1359,9 +1477,13 @@ def test_short_read_raises_timeout(): ...
 
 Recompute the expected hex from your own arithmetic and from the header and checksum rule you confirmed in S1; if they differ from the lineage defaults, so does this string. Deriving it is the exercise.
 
-**Done when:** sync-write moves six joints in one packet, `pytest sw/hx_min` is green, byte order and sign are settled with evidence, and every register row is cited to the Hiwonder document and verified on hardware.
+Push, then run `pytest sw/hx_min` in the server workbench too. If a test only passes on the laptop, it is quietly using hardware.
+
+**Done when:** sync-write moves six joints in one packet, `pytest sw/hx_min` is green in both workbenches, byte order and sign are settled with evidence, and every register row is cited to the Hiwonder document and verified on hardware.
 
 #### S4 · Latency of the USB path, measured properly (2 h)
+
+**Where:** Laptop workbench
 
 This is the baseline the whole project is judged against. Measure it well.
 
@@ -1392,6 +1514,8 @@ np.savetxt("docs/data/usb-read-latency.csv", a, delimiter=",")
 **Done when:** the histogram is saved, the CSV is committed, and the measured-vs-theoretical table is written.
 
 #### S5 · Saturday: end-to-end teleop latency, then write the spec (4 h)
+
+**Where:** Laptop workbench · Bench · Workbench. Measure on the laptop; write the spec in either workbench.
 
 1. **The measurement that matters.** With LeRobot teleop running, put scope channel 1 on the leader bus and channel 2 on the follower bus. Trigger on activity on the leader bus.
 2. Tap a leader joint sharply — a step input, not a smooth motion. Capture the interval from the leader bus transaction that *first reports the moved position* to the follower bus write that *commands the new goal*. That interval is your USB-path teleop latency.
@@ -1453,6 +1577,8 @@ np.savetxt("docs/data/usb-read-latency.csv", a, delimiter=",")
 
 #### S1 · Numbered requirements with verification methods (2 h)
 
+**Where:** Workbench
+
 1. Create `docs/requirements.md` with one table. Every row gets an ID, a statement, a rationale that names its source measurement, and a verification method from **T**est / **A**nalysis / **I**nspection / **D**emonstration.
 
 2. Do the **bus budget arithmetic explicitly** in the document, because it is what sets the headline requirement. The worked version below uses the lineage packet layout; **redo it with the framing and SyncWrite width you confirmed in W3**, and keep both versions visible so a reviewer can see the assumption changed:
@@ -1499,6 +1625,8 @@ Leader bus: reads only ≈ 1.80 ms          →  ceiling ≈ 555 Hz
 
 #### S2 · Power and camera budgets (2 h)
 
+**Where:** Workbench
+
 1. **Power budget**, in a table built from W2's measured currents — not datasheet maxima, which will oversize everything:
    - Follower 12 V rail: quiescent, realistic worst-case simultaneous load, absolute stall case. State which one you design to and why. Six simultaneous stalls is a fault condition the current limit handles, not an operating point the fuse must pass.
    - Fuse sizing: `I_fuse ≥ 1.5 × I_continuous_max`, then derate for ambient — most fuses lose about a quarter of their rating by 50 °C. Show both steps.
@@ -1518,7 +1646,9 @@ Leader bus: reads only ≈ 1.80 ms          →  ceiling ≈ 555 Hz
 
 #### S3 · Architecture and the interface control document (2 h)
 
-1. Draw the block diagram — one page, in a text-diffable source format (Mermaid, Graphviz or draw.io XML) so it can be reviewed and versioned:
+**Where:** Workbench
+
+1. Draw the block diagram — one page, in a text-diffable source format (Mermaid, Graphviz or draw.io XML) so it can be reviewed and versioned. Mermaid is the easiest from the workbench: it is plain text in a Markdown file, and GitHub renders it when you push.
 
 ```
 PS (Linux / PYNQ)                        PL
@@ -1561,6 +1691,8 @@ Reserve `0x2000` for the W10 teleop scheduler and `0x3000` for the BRAM snapshot
 
 #### S4 · Risks, schedule and decision records (2 h)
 
+**Where:** Workbench · Windows desktop. The ROCm smoke test in step 5 runs on the desktop's Ubuntu partition.
+
 1. `docs/risks.md`, one row per risk: description, likelihood, impact, owner, mitigation, trigger, and the response. Top risk is PCB fab and assembly lead time. Add: toolchain skew, USB bandwidth, wrong rail to the leader, RTL overrun, bench time squeezed, servo damaged in stall testing.
 2. Draw the schedule with **W8 fab release on the critical path**. Mark the float each downstream week has. The holiday buffer after W8 already absorbs a normal two-week fab time. Identify what you would do if the boards were two weeks later still — that answer *is* the mitigation, and it is the swap of W9 and W10.
 3. Write the decision records. Each is half a page, using the W0 template. At minimum:
@@ -1577,6 +1709,8 @@ Reserve `0x2000` for the W10 teleop scheduler and `0x3000` for the BRAM snapshot
 
 #### S5 · Saturday: run a real review on yourself (4 h)
 
+**Where:** Workbench
+
 Treat this as a rehearsal for W13. The purpose is to find problems, not to approve slides.
 
 1. Write the review checklist first, before looking at your own work, so you cannot bend it:
@@ -1592,7 +1726,7 @@ Treat this as a rehearsal for W13. The purpose is to find problems, not to appro
 3. Classify each finding: **blocker / major / minor / question**. Assign yourself an action and a due week for each.
 4. Now fix the blockers. Leave the rest as tracked actions.
 5. Write `docs/reviews/2026-w04-architecture-review.md`: attendees (you), scope, checklist used, findings with classification, actions with owners and dates, and the exit decision. Real minutes, real format.
-6. **Rehearse the defence.** Close the laptop and state out loud, from memory: the loop-rate target and its margin, the teleop latency target and its baseline, the camera bandwidth conclusion, and the power headline. If you cannot, you do not own the architecture yet — reread and repeat. This is exactly what Gate 1 tests.
+6. **Rehearse the defence.** Close the browser and state out loud, from memory: the loop-rate target and its margin, the teleop latency target and its baseline, the camera bandwidth conclusion, and the power headline. If you cannot, you do not own the architecture yet — reread and repeat. This is exactly what Gate 1 tests.
 
 **Done when:** review minutes exist with classified findings, and you can recite the four headline numbers cold.
 
@@ -1635,6 +1769,8 @@ Treat this as a rehearsal for W13. The purpose is to find problems, not to appro
 Choose the descriptor interface and write it up as `docs/decisions/0008-packet-engine-in-pl.md`. The reason is W10: an interface that only the PS can drive cannot become a hardware loop later. Noticing that in W5 rather than W10 is the senior move.
 
 #### S1 · Baud generator and transmitter with direction control (2 h)
+
+**Where:** Workbench
 
 **Start from your R4 transmitter.** You wrote `uart_tx.sv` with this interface in R4 S3 and have it working on hardware. Promote it into `rtl/servo_bus_master/`, compare it with the listing below, and spend this session on what is new: the runtime baud divisor from `CONFIG` and the direction control. The time you save goes into S5's testbench, which is the part of this week that matters most.
 
@@ -1694,6 +1830,8 @@ endmodule
 
 #### S2 · Receiver with mid-bit majority sampling (2 h)
 
+**Where:** Workbench
+
 **Start from your R5 receiver**, which already has the synchroniser, start-bit check and framing error. This session upgrades its single centre sample to a three-sample majority vote and wires out the error counters. You also measured its baud tolerance in R5 S1 — rerun that test after the change and compare.
 
 1. Two-flop synchroniser on the incoming RX line first — it comes from a pad and is asynchronous to your clock. This is a real CDC and you will be asked about it in W13, so comment it as one.
@@ -1705,6 +1843,8 @@ endmodule
 **Done when:** bytes round-trip through `uart_tx` → wire → `uart_rx` in simulation, and you know your baud tolerance as a number.
 
 #### S3 · Packet engine: framing, checksum, parsing, timeout (2 h)
+
+**Where:** Workbench
 
 1. Transmit path state machine, driven by a descriptor: emit `FF FF`, then `ID`, `LEN`, `INSTR`, payload bytes from the FIFO, then the checksum. Accumulate the checksum in hardware as bytes leave — `sum <= sum + byte` from `ID` onward, emit `~sum`. Doing it as a running sum rather than a separate pass is what makes the engine streamable.
 2. Receive path: hunt for `FF FF`, capture `ID`, `LEN`, `ERR`, then `LEN-2` parameter bytes, then verify the checksum. On success push the parameters into the RX FIFO and set `rx_valid`. On failure increment `checksum_err` and discard the frame — **never** push a frame that failed its checksum, because a silently-corrupted position is worse than a missing one.
@@ -1719,7 +1859,9 @@ endmodule
 
 #### S4 · AXI-Lite wrapper, FIFOs, and two buses (2 h)
 
-1. Generate the AXI-Lite slave skeleton from Vivado's "Create and Package New IP" flow, then replace its register block with your own implementing `docs/icd.md` v0.1. Keep the generated AXI handshaking; it is correct and it is not the interesting part.
+**Where:** Vivado · Workbench. Generate the AXI-Lite skeleton in Vivado on the laptop, push it, then fill in the register block in the workbench.
+
+1. Generate the AXI-Lite slave skeleton from Vivado's "Create and Package New IP" flow on the laptop, with its output inside the repo under `rtl/servo_bus_master/`, and push it. Then, in the workbench, replace its register block with your own implementing `docs/icd.md` v0.1. Keep the generated AXI handshaking; it is correct and it is not the interesting part.
 2. Instantiate TX and RX FIFOs — depth 64 bytes each is ample for a six-servo SyncWrite plus margin, even if Hiwonder's goal write carries speed or time per servo (check against the packet length you recorded in W3). Expose levels in `FIFO_LVL` and overflow in `STATUS`.
 3. Parameterise the top level for `N_BUS` and instantiate two, at the `0x0000` and `0x1000` offsets from the ICD. The address decode is `addr[12]` selecting the instance — trivially extensible to four buses later, which is worth one sentence in the README.
 4. **Keep everything in the AXI clock domain.** The only CDC in the design is the RX input synchroniser from S2. Write that sentence into the README explicitly, because "are there any clock domain crossings?" is interview question 4 and the best answer is a design where the answer is short and provable.
@@ -1728,6 +1870,8 @@ endmodule
 **Done when:** both bus instances respond at their offsets in simulation and the ICD matches the RTL.
 
 #### S5 · Saturday: the behavioural servo model and the test suite (4 h)
+
+**Where:** Workbench
 
 The testbench is the deliverable that makes this a senior week. Budget more time here than on the RTL.
 
@@ -1774,11 +1918,13 @@ If Icarus chokes on your SystemVerilog, switch `SIM=verilator` rather than dumbi
 
 #### S6 · Extra block: coverage, lint, documentation (2 h)
 
+**Where:** Workbench
+
 1. Functional coverage, tracked simply: a Python dict in the testbench counting which instructions and which error paths each test exercised, dumped at the end of the run. Report **instruction coverage** (of PING/READ/WRITE/SYNC_WRITE) and **error-path coverage** (checksum, timeout, framing, overflow) as percentages with the denominators stated. Do not quote a coverage number whose denominator you cannot name.
 2. Lint with Verilator:
 
 ```bash
-verilator --lint-only -Wall -Wno-fatal rtl/servo_bus_master/*.sv
+verilator --lint-only -Wall -Wno-fatal rtl/servo_bus_master/*.sv    # in the workbench terminal
 ```
 
 Fix every warning or write a one-line justification next to the waiver. Latch inference, incomplete sensitivity and width-mismatch warnings are never to be waived; unused-signal warnings often can be.
@@ -1827,7 +1973,9 @@ Fix every warning or write a one-line justification next to the waiver. Latch in
 
 #### S1 · Package the IP and constrain the pins (2 h)
 
-1. Package `servo_bus_master` as an IP with a VLNV you control — `yourname:user:servo_bus_master:1.0`. Put the packaging in a Tcl script too; the no-GUI-clicks rule still applies.
+**Where:** Workbench · Laptop workbench. Write the packaging Tcl, build Tcl and XDC in the workbench; run them on the laptop.
+
+1. Package `servo_bus_master` as an IP with a VLNV you control — `yourname:user:servo_bus_master:1.0`. Put the packaging in a Tcl script too; the no-GUI-clicks rule still applies. Write the scripts and the XDC in the workbench; run them in the laptop workbench with `vivado -mode batch -source …` after a `git pull`.
 2. Extend `overlay/hello/build.tcl` into `overlay/v0.1/build.tcl`: same PS7 setup, add the IP repo path, instantiate the IP, `apply_bd_automation` to hang it off `M_AXI_GP0`.
 3. Constrain six pins in the XDC — `tx`, `rx`, `dir` for each bus. **Take the pin names from the PYNQ-Z2 master XDC**, uncommenting the Arduino-header lines you need, and cross-check them against `docs/icd.md`'s pin assignment. If the ICD and the XDC disagree, the ICD is what W7's schematic will be built from, so resolve the disagreement now and in the ICD.
 4. Set `IOSTANDARD LVCMOS33` on all six. Add a `set_property PULLUP true` on each `rx` so a disconnected bus idles high rather than floating — a floating receiver generates phantom start bits and will cost you an hour in S4 otherwise.
@@ -1837,6 +1985,8 @@ Fix every warning or write a one-line justification next to the waiver. Latch in
 
 #### S2 · Build, close timing, and read the reports (2 h)
 
+**Where:** Vivado · Laptop workbench
+
 1. Run implementation to bitstream. While it runs, open the previous run's reports rather than watching the progress bar. `report_timing_summary` and `report_utilization` are all this week needs and both are available on the Basic tier; some of Vivado's advanced timing-closure guidance is reserved for paid tiers, so if a tutorial points you at a report that refuses to run, that is why.
 2. Record from `report_timing_summary`: **WNS**, **TNS**, and the worst failing path if any. Record from `report_utilization`: LUT, FF, BRAM and DSP as absolute numbers and as a percentage of the 7Z020.
 3. If WNS is negative, fix it properly and document what you did:
@@ -1845,11 +1995,13 @@ Fix every warning or write a one-line justification next to the waiver. Latch in
    - Retiming and over-constraining are last resorts and should be recorded as such.
    - Write `docs/decisions/0009-timing-closure.md` with the before/after WNS and what changed. Interview question 5 is exactly this, and a documented negative-to-positive story is worth more than a design that closed first time.
 4. Archive the timing report into `docs/reports/` with the date and the git hash in the filename. A timing report you cannot tie to a commit is not evidence.
-5. Copy `.bit` and `.hwh` to the board under `overlay/v0.1/` with matching base names.
+5. Copy `.bit` and `.hwh` to the board under `overlay/v0.1/` with matching base names, using `scp` from the laptop workbench as in W1 S4.
 
 **Done when:** WNS is positive, the report is archived against a commit hash, and — if it ever went negative — the decision record exists.
 
 #### S3 · The PYNQ driver, reusing the W3 tests (2 h)
+
+**Where:** Workbench · PYNQ Jupyter. Write the driver in the workbench and copy it to the board with `scp` from the workbench terminal.
 
 1. Write `sw/pynq_hx.py` as a `DefaultIP` subclass so PYNQ binds it automatically:
 
@@ -1884,9 +2036,13 @@ class ServoBusMaster(DefaultIP):
 4. **Reuse the W3 unit tests against the new backend.** This is the payoff for writing them dependency-light: point the same test functions at a `ServoBusMaster` instead of a `HxBus` and they should pass unchanged. Where they do not, the difference is either a real bug or an unstated assumption in the spec — both worth writing down.
 5. Add an interface-conformance test that runs against *either* backend, so W10 and W11 can use it as a regression.
 
+To run on the board, copy the driver and tests over from the workbench terminal (`scp -r sw xilinx@PYNQ_IP:~/`) and run them over SSH or in a Jupyter cell.
+
 **Done when:** the W3 tests pass against the PL backend with no hardware attached beyond the board itself (loopback `tx` to `rx` on the breadboard if needed).
 
 #### S4 · ILA: find the bug the simulator was too polite to find (2 h)
+
+**Where:** Vivado · Workbench. ILA captures in Vivado; the regression test in the workbench.
 
 1. **Instantiate one ILA core, with at most five probes.** On the Vivado Basic tier the ILA is available by instantiation only — one core, up to five probes, each up to 1024 bits wide — and the System ILA and the `mark_debug` / *Set Up Debug* insertion flow are not available. That limit shapes the design, which is a useful constraint to have met:
    - Add the ILA IP from the catalogue in your Tcl (`create_bd_cell -type ip -vlnv xilinx.com:ip:ila ...`) or instantiate it directly in RTL, and connect it to the PL clock.
@@ -1907,12 +2063,14 @@ class ServoBusMaster(DefaultIP):
    - `DIR` released one bit time early because the stop bit was not counted.
    - The pad's output delay is not in your simulation, so the real release is later than modelled.
    - The receiver arms a cycle after `DIR` releases and eats the reply's start bit.
-5. Fix it in the RTL, **add a cocotb test that reproduces it**, and confirm the test fails on the old RTL and passes on the new. That sequence — hardware finding, regression test, fix — is the answer to interview question 3, and you want to have actually done it.
+5. Fix it in the RTL in the workbench, **add a cocotb test that reproduces it**, and confirm the test fails on the old RTL and passes on the new. That sequence — hardware finding, regression test, fix — is the answer to interview question 3, and you want to have actually done it.
 6. Log the finding in `docs/eco.md` even though this is RTL rather than PCB. The ECO tracker opens in W8, but a finding is a finding; note it now and move it when the file exists.
 
 **Done when:** simulated and measured turnaround agree, and a regression test exists that would have caught the original bug.
 
 #### S5 · Saturday: real servos from the PL (4 h)
+
+**Where:** Bench · PYNQ Jupyter · Workbench
 
 1. **Check the signal level first.** From your W2 scope captures, what level does the servo bus idle at? PYNQ-Z2 PL pins are 3.3 V and not 5 V tolerant. If the bus idles above 3.3 V, the receive path must go through a translator with its bus side at the servo's level (an SN74LVC1T45 with its VCCB side at that level), not straight into a PL pin.
 2. **Build the interim bus drivers on the breadboard.** Per bus, you need a 3.3 V half-duplex node: the PL `tx` drives the bus through a tri-state buffer enabled by `dir`, and the bus feeds the PL `rx` continuously. Keep the wires short — this is a 1 Mbps bus on a breadboard and it is already marginal. Add the series resistor at the driver output now; you will size it properly in W7, but 22 Ω is a reasonable starting value. Use pre-crimped 5264-3P leads rather than bare jumpers into the servo connector.
@@ -1927,7 +2085,7 @@ class ServoBusMaster(DefaultIP):
    - **Six servos, ping all.**
    - **Six servos, sync-write.** A small coordinated move. Confirm on the scope that it is one packet of the W3-measured length.
    - **Leader bus, read six.** Reads only.
-6. **Python teleop on the PS over the PL IP.** A simple loop: read six leader positions, map them, sync-write six follower goals. Keep it deliberately naive — this is the PS-in-loop baseline, and its jitter is the thing W10 eliminates.
+6. **Python teleop on the PS over the PL IP**, written in the workbench and copied to the board with `scp`. A simple loop: read six leader positions, map them, sync-write six follower goals. Keep it deliberately naive — this is the PS-in-loop baseline, and its jitter is the thing W10 eliminates.
 7. Measure, with the same method as W3 so the numbers are comparable:
    - Read round-trip through the PL path, 1000 samples, same histogram script. Overlay it on the W3 USB histogram in one figure. That figure is the best single image in your whole design package.
    - Teleop latency, scope on both bus lines, 20 captures, same tap-the-joint method.
@@ -1970,9 +2128,12 @@ class ServoBusMaster(DefaultIP):
 
 **Competency:** part selection, derating, and design-for-safety. Making a schematic reviewable is itself a senior skill.
 **Budget note:** 14 h — five standard sessions plus one extra 2 h block for breadboard prototyping.
+**Where the files live:** KiCad runs on the laptop, so `hw/shield/` is edited in the laptop's clone; commit and push it at the end of each session like everything else. Decision records, notes and review minutes can be written in either workbench.
 **Rule for the week:** every part must be in stock at LCSC with a named alternate, and every value must trace to either a W2 measurement or a formula written in the schematic notes. "Looked right" is not a sourcing strategy.
 
 #### S1 · The 12 V input path (2 h)
+
+**Where:** KiCad
 
 Work from the connector inwards. Draw it as a left-to-right chain so the review reads naturally.
 
@@ -1987,6 +2148,8 @@ Work from the connector inwards. Draw it as a left-to-right chain so the review 
 **Done when:** the input chain is drawn with every value's arithmetic in a text block on the sheet.
 
 #### S2 · The over-voltage cutoff and both 12 V load switches (2 h)
+
+**Where:** KiCad · Workbench. The decision record goes in from the workbench.
 
 Both arms run from the same 12 V input, so the shield has **no regulator for the servos** — it switches, protects and measures two copies of the same rail. The design effort that a 5 V buck would have taken goes into the over-voltage cutoff instead, because that is where the kit's real hazard lives.
 
@@ -2004,6 +2167,8 @@ Both arms run from the same 12 V input, so the shield has **no regulator for the
 
 #### S3 · Servo buses, signal levels, and telling the two ports apart (2 h)
 
+**Where:** KiCad
+
 1. **Per bus**, two 3.3 V devices: a tri-state buffer driving the bus, enabled by the PL `DIR` pin, and a receive path from the bus back to the PL `RX`. `SN74LVC1G125` (active-low output enable) or `SN74LVC1T45` (direction-controlled translator) both work; pick one and note why in the schematic. The 1T45 gives you translation you do not strictly need; the 1G125 is simpler and cheaper.
    - Check the `DIR` polarity against your W5 RTL. If they disagree, fix the RTL, not the schematic — a bodge wire on the board is a worse answer than a rebuild.
    - **Check the signal level before choosing.** Look at the idle level you measured on the bus in W2. If the HX servos pull the line to 5 V, a 3.3 V buffer's input and the PL's `RX` pin are both at risk, and you need a translator with its bus side at 5 V — the 1T45 then earns its place. If the bus idles at 3.3 V, check the servo's input-high threshold against a 3.3 V driver instead. Write the measured level and the resulting choice on the sheet.
@@ -2020,6 +2185,8 @@ Both arms run from the same 12 V input, so the shield has **no regulator for the
 
 #### S4 · Sense: current, temperature, and test points (2 h)
 
+**Where:** KiCad
+
 1. **INA226 per rail**, high-side shunt, I²C to the PS.
    - Shunt value from the part's ±81.92 mV full-scale: `R_shunt = 81.92 mV / I_fullscale`. For a 10 A full scale that is 8.2 mΩ; for a 3 A full scale, 27 mΩ.
    - Shunt power: `P = I²·R`. At 10 A into 8 mΩ that is 0.8 W, so a 2 W part in a 2010 or 2512 package with thermal relief planned for W8.
@@ -2033,6 +2200,8 @@ Both arms run from the same 12 V input, so the shield has **no regulator for the
 **Done when:** every test point has a documented expected value, and the two INA226 addresses are explicitly different on the sheet.
 
 #### S5 · Saturday: safety chain, ERC, BOM, and a real schematic review (4 h)
+
+**Where:** KiCad · Workbench. ERC and BOM in KiCad; the review minutes in the workbench.
 
 1. **Draw the safety chain as its own sheet.** It is the most important page in the package and it should be readable alone.
    - The **e-stop** is a latching, normally-closed mushroom switch in series with the `RAIL_HOLD` path. Opening it removes the hold from both load switches with no firmware, no microcontroller and no PL logic in the path. Trace the path with your finger on the printed sheet and confirm there is nothing programmable in it — if there is, redraw.
@@ -2059,6 +2228,8 @@ Both arms run from the same 12 V input, so the shield has **no regulator for the
 **Done when:** ERC is clean, the BOM has alternates and a stock date, and the review minutes list closed blockers.
 
 #### S6 · Extra block: prototype the parts you are least sure of (2 h)
+
+**Where:** Bench · Vivado · Workbench. The watchdog toggle needs a small bitstream; the notes go in from the workbench.
 
 Do not commit an untested sub-circuit to a two-week fab cycle.
 
@@ -2114,6 +2285,8 @@ Do not commit an untested sub-circuit to a two-week fab cycle.
 
 #### S1 · Stack-up, outline, and placement (2 h)
 
+**Where:** KiCad · Bench
+
 1. **Four-layer stack-up**, and know why you chose it: L1 signal, **L2 solid ground**, L3 power, L4 signal. Use a standard fab stack-up (JLCPCB's 1.6 mm four-layer with a 7628 prepreg is the default) so impedance and cost are predictable. The reason for four layers is the solid ground plane on L2 — it gives every 1 Mbps bus line a continuous return path directly beneath it and it is what makes interview question 2 answerable.
 2. **Board outline and the mechanical hazards.** This is where shields fail.
    - Match the Arduino-header mechanical outline exactly. Take the header positions from the PYNQ-Z2 mechanical drawing, and then **verify against the physical board with calipers**. The Arduino header's deliberate non-standard 0.05" offset on one connector has caught everyone at least once.
@@ -2126,6 +2299,8 @@ Do not commit an untested sub-circuit to a two-week fab cycle.
 
 #### S2 · Power routing and thermals (2 h)
 
+**Where:** KiCad
+
 1. Route the high-current 12 V path first, as **copper pours rather than traces**. Width from the KiCad calculator against IPC-2152 for your current and an acceptable temperature rise; expect to need several millimetres or a pour. Record the width and the assumed rise in the layout notes.
 2. **Kelvin the shunts.** The sense traces leave from the shunt pads themselves as a tight differential pair, routed away from the current path, and they must not carry any load current. This is the single easiest thing to get wrong and it directly corrupts every current measurement in W11.
 3. **Thermal relief and copper area** for the load-switch FETs and the shunts, sized against the dissipation you computed in W7. Put the copper on both outer layers with stitching vias if you need more.
@@ -2135,6 +2310,8 @@ Do not commit an untested sub-circuit to a two-week fab cycle.
 **Done when:** the current path is poured, the shunts are Kelvined, and the L2 plane under the bus lines is continuous.
 
 #### S3 · Signal routing and the return-path story (2 h)
+
+**Where:** KiCad · Workbench. The return-path note goes in `docs/layout-notes.md`.
 
 1. Route both buses as short, direct traces on L1 with L2 ground directly beneath. At 1 Mbps with a ~5 ns edge, the electrical length matters less than the return path — but the return path always matters, and it is the question you will be asked.
 2. Place the series resistors **at the driver**, not at the connector: their job is to damp the edge at its source.
@@ -2148,6 +2325,8 @@ Do not commit an untested sub-circuit to a two-week fab cycle.
 
 #### S4 · DRC, DFM and the checks that catch the expensive mistakes (2 h)
 
+**Where:** KiCad · Bench
+
 1. **DRC against the fab's actual rules**, not KiCad's defaults. Import JLCPCB's design rules (minimum trace/space, annular ring, drill sizes, edge clearance) and run it clean.
 2. **DFM pass**, by eye and by checklist:
    - Any acid traps or slivers?
@@ -2155,13 +2334,15 @@ Do not commit an untested sub-circuit to a two-week fab cycle.
    - Are all footprints checked against the actual datasheet drawings? Print the footprints 1:1 and lay the physical parts on them — this catches a wrong footprint in thirty seconds and is the highest-value DFM check available to you.
    - Is every polarised part's orientation marked on the silkscreen *and* consistent in the 3D view?
    - Are there fiducials, if you are ordering assembly?
-3. **Netlist sanity, manually.** Open the netlist and grep for the hazards: confirm that **no path reaches either servo connector's 12 V pin without passing through the over-voltage cutoff**, that each switched rail reaches only its own arm's connector, and that `RAIL_HOLD` and `OV_TRIP` go where the safety sheet says. A few greps, a few minutes, and it is the check that protects twelve servos.
+3. **Netlist sanity, manually.** Export the netlist, push it, and grep it for the hazards in the workbench terminal: confirm that **no path reaches either servo connector's 12 V pin without passing through the over-voltage cutoff**, that each switched rail reaches only its own arm's connector, and that `RAIL_HOLD` and `OV_TRIP` go where the safety sheet says. A few greps, a few minutes, and it is the check that protects twelve servos.
 4. **3D render pass.** Look at the board from four angles against the PYNQ-Z2's tall connectors one final time.
 5. Run the review checklist from W7 S5 again against the *layout* — a schematic review does not cover placement decisions.
 
 **Done when:** DRC is clean against the fab's rules and the footprint print-out check is done with physical parts.
 
 #### S5 · Saturday part one: release the fab package (2 h of the 4 h block)
+
+**Where:** KiCad · Laptop workbench. The fab files are exported on the laptop, so tag and push from the laptop workbench.
 
 Release is an event with a procedure, not a button.
 
@@ -2177,7 +2358,7 @@ Release is an event with a procedure, not a button.
 4. **Tag the release in git:**
 
 ```bash
-git tag -a rev-A -m "Shield rev-A released to fab $(date -I)"
+git tag -a rev-A -m "Shield rev-A released to fab $(date -I)"    # in the laptop workbench
 git push --tags
 ```
 
@@ -2187,6 +2368,8 @@ git push --tags
 **Done when:** the package is ordered, `rev-A` is tagged and pushed, and the ECO tracker exists.
 
 #### S5b · Saturday part two: write the bring-up plan (2 h)
+
+**Where:** Workbench
 
 Write this **now**, while the board is fresh in your mind and before it arrives, because a plan written with the board on the bench is a plan written to justify what you already did.
 
@@ -2211,10 +2394,12 @@ For each stage, also write: the tools needed, the safety steps, and what "done" 
 
 #### S6 · Extra block: prepare for the wait (2 h)
 
+**Where:** Bench · Workbench
+
 Boards take about two weeks, and the holiday buffer covers most of that. Do this block before the holidays start, so the bench is ready on 4 January and nothing has to be remembered.
 
 1. Decide now what you will do if the boards are late: the risk register says swap W9 and W10, and W10 runs fine on the breadboard buffers. Set the trigger date — boards not in hand by **Monday 4 January** means W10 goes first — and put it in the schedule.
-2. Set up the W9 bench in advance: supplies labelled and limited, scope probes compensated, thermal camera or IR thermometer to hand, the bring-up plan printed on paper with space to write measured values beside expected ones. Bring-up with a paper checklist and a pen is faster than bring-up with a laptop.
+2. Set up the W9 bench in advance: supplies labelled and limited, scope probes compensated, thermal camera or IR thermometer to hand, the bring-up plan printed on paper with space to write measured values beside expected ones. Bring-up with a paper checklist and a pen is faster than bring-up with a laptop or a browser.
 3. Pre-write the empty `docs/bringup-report.md` with the measured-vs-expected table already laid out, rows for every test point. Filling in a prepared table is how you avoid finishing bring-up with a working board and no record of it.
 4. If time remains, start reading ahead for W10: the C++ primer and Vitis HLS example noted in W10 S3.
 
@@ -2272,6 +2457,8 @@ If the boards are late, swap this week with W10 as the risk register says. That 
 
 #### S1 · Stages 0–2: inspection, bare power, over-voltage cutoff (2 h)
 
+**Where:** Bench · Workbench. Paper checklist at the bench; transcribe in the workbench at the end.
+
 1. **Stage 0, inspection.** Under magnification, go component by component against the layout: orientation of every polarised part, every IC's pin 1, any bridged fine-pitch pin, any missing part. Photograph anything that looks wrong before touching it.
 2. Continuity: every rail to ground with a meter. Anything below about 10 Ω is a short and stops the stage. Also check the follower rail to the leader rail and 12 V to 3.3 V — a solder bridge between rails is the failure that destroys the most parts at once.
 3. **Stage 1, bare power.** 12 V in from the bench supply, **limit 500 mA**, nothing else connected — no PYNQ, no arms. The low limit is the whole point: if there is a fault, the supply finds it instead of the board.
@@ -2282,11 +2469,13 @@ If the boards are late, swap this week with W10 as the risk register says. That 
    - Ramp the input slowly from 12.0 V and record the trip voltage; ramp down and record the release. Compare both with the W4 worst-case range and the W7 breadboard numbers.
    - Step the supply from 12 V to 14 V (or use a second supply and a switch) with the scope on a switched rail, and measure the **peak voltage the rail reaches before the cutoff acts** and the time to fall. The peak must stay below 12.6 V. If it does not, the board is not safe to connect to servos, and that is a rev-B blocker — log it and stop.
    - Measure static ripple on the input rail with the scope **AC-coupled, 20 MHz bandwidth limit, spring ground**. Without the bandwidth limit and the short ground you will measure probe pickup and conclude your rail is noisy.
-5. Write every number into the printed table as you go, then transcribe into `docs/bringup-report.md` at the end of the session.
+5. Write every number into the printed table as you go, then transcribe into `docs/bringup-report.md` in the workbench at the end of the session.
 
 **Done when:** stages 0–2 are complete with measured values recorded, or a fault is found and logged as an ECO.
 
 #### S2 · Stages 3–4: load switches and the safety chain (2 h)
+
+**Where:** Bench · PYNQ Jupyter · Workbench
 
 The safety chain gets tested **before** any servo is connected. Testing it afterwards means testing it with hardware at risk.
 
@@ -2300,6 +2489,8 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 
 #### S3 · Stages 5–7: buses, one servo, then six (2 h)
 
+**Where:** Bench · PYNQ Jupyter · Workbench
+
 1. Mate the shield to the PYNQ-Z2. Check the alignment physically before pressing down, and check that nothing fouls the tall connectors — the 1:1 paper check in W8 predicted this, now verify it.
 2. **Stage 5, loopback.** With no servos attached, loop each bus back on itself and transmit a packet. You should receive your own bytes on both buses. This tests the buffers, the `DIR` logic, the series resistors and the connectors with nothing at risk.
 3. Compare the bus edges on the **shield** against the W2 breadboard and far-end captures. This is the payoff measurement of the whole PCB: rise time, ringing amplitude, and the cleanliness of the turnaround should all be visibly better. Capture and save all three side by side — that figure belongs in the W13 review.
@@ -2310,6 +2501,8 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 **Done when:** six follower servos run from the shield with zero bus errors over ten minutes, and the three-way edge comparison figure is saved.
 
 #### S4 · Stage 8 and root-cause discipline (2 h)
+
+**Where:** Bench · PYNQ Jupyter · Workbench
 
 1. **Rail check, and bus identity.** 12.0 V on the display. The leader goes on the `LEADER` port — both ports carry the same voltage on the same connector, so the only things distinguishing them are your silkscreen, your cable flags and the driver's model check. Confirm the driver refuses to enable torque if you deliberately plug the leader into the follower port first (arms clear, torque not yet enabled). Then connect it correctly and read all six positions.
 2. Run the PS-side teleop loop over the shield. Both arms, your own board, your own RTL.
@@ -2325,6 +2518,8 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 **Done when:** every anomaly is logged with a classification and a disposition, even the unresolved ones.
 
 #### S5 · Saturday: thermal survey, the rev-B list, and the report (4 h)
+
+**Where:** Bench · KiCad · Workbench
 
 1. **Stage 9.** Ten minutes of continuous teleop with the follower doing real work — moving under load, not idling. Then survey temperatures immediately, before anything cools:
    - Both shunts
@@ -2393,6 +2588,8 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 
 #### S1 · The loop timer and the scheduler state machine (2 h)
 
+**Where:** Workbench
+
 1. **Loop timer.** A down-counter from `CONFIG.loop_period`, at 100 MHz. For the 250 Hz target from REQ-001, that is `100e6 / 250 = 400_000` clocks, a 4.000 ms period. Make the period a register so you can sweep the rate in S5 and find the real ceiling.
 2. **Scheduler state machine** in `rtl/teleop_sched/`. One iteration does:
    - Issue six leader reads (round-robin, one at a time — the bus is serial)
@@ -2407,6 +2604,8 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 
 #### S2 · Mapping, limits, and the BRAM snapshot (2 h)
 
+**Where:** Workbench
+
 1. **Per-joint scale, offset and limit block.** For each of the six joints: `follower_goal = clamp(offset + (leader_pos * scale) >> shift, min, max)`. Keep it fixed-point and keep the arithmetic trivially reviewable — this block sits between a human's hand and a motor, and clever arithmetic here is a liability. Positions are **signed** multi-turn values on HX servos; carry them signed through the block, and use the W3 finding on the 0/4095 seam to decide whether any joint (wrist roll, most likely) needs wrap handling here.
 2. The **limit** is a safety function, not a convenience. It must clamp in hardware, it must be settable only from the PS, and it must default to a safe narrow range on reset rather than to full travel. Write down what the reset default is and why. The HX servos also hold their own min/max angle limits (the W2 screenshots); set yours inside theirs, so the servo's limit is a backstop rather than the thing that actually stops the arm.
 3. Add a per-joint **enable** so you can bring up one joint at a time in S5 without rewiring anything. Bring-up granularity designed in advance is what makes the hardware session fast.
@@ -2418,9 +2617,11 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 
 #### S3 · The HLS trajectory filter (2 h)
 
+**Where:** Vitis HLS · Workbench. The kernel source lives in the repo, so edit it in the workbench and synthesise in Vitis HLS on the laptop.
+
 **C++ is a third language, but a small one here.** HLS uses a restricted subset of C++: functions, fixed-size arrays, `for` loops, integer and `ap_fixed` types — no dynamic memory, no classes you need to write. Before starting, spend 45 minutes on a C++ basics tutorial (variables, functions, loops, arrays, header files) and build one of the Vitis HLS example projects unchanged, reading its synthesis report. Your Python and Verilog now carry most of the weight: the filter's logic is the same as a few lines of Python, and its report reads like the Vivado reports you know from W6. The whole kernel is about thirty lines.
 
-1. Create the Vitis HLS project under `rtl/hls_traj/`. The filter takes a leader position stream and produces a follower goal stream, doing two things:
+1. Write the kernel and its C testbench in the workbench under `rtl/hls_traj/`, push, and create the Vitis HLS project on the laptop pointing at those files, with the project folder under `build/` and out of git. The filter takes a leader position stream and produces a follower goal stream, doing two things:
    - **Rate limiting:** `out = prev + clamp(target - prev, -max_delta, +max_delta)`, where `max_delta` is the maximum change per loop iteration. At 250 Hz, `max_delta` in counts per iteration converts directly to a joint speed limit — compute that conversion and state the resulting deg/s, because that is the number a human understands.
    - **Smoothing:** a first-order IIR, `y += (x - y) >> k`, with `k` a runtime parameter. A shift-based IIR is cheap and its behaviour is obvious.
 2. Use `ap_fixed` with a width and integer-part chosen from the 0–4095 position range plus headroom for the filter state. Write down the format you chose (for example `ap_fixed<20,14>`) and why — quantisation in a rate limiter shows up as a joint that creeps.
@@ -2431,13 +2632,15 @@ The safety chain gets tested **before** any servo is connected. Testing it after
    - Latency and initiation interval in cycles, converted to microseconds at 100 MHz
    - LUT, FF, DSP and BRAM usage
    - Which loop, if any, failed to achieve II=1, and why
-7. Write those numbers into `docs/performance.md`. Being able to say "the filter adds 1.2 µs and 3 DSPs" is what makes the HLS decision defensible; "I used HLS" is not.
+7. Commit the HLS report and write those numbers into `docs/performance.md`. Being able to say "the filter adds 1.2 µs and 3 DSPs" is what makes the HLS decision defensible; "I used HLS" is not.
 
 **Done when:** the filter synthesises with a report you can explain line by line, and its latency in microseconds is written down.
 
 #### S4 · Integration, build, and timing (2 h)
 
-1. Add the scheduler, the mapping block and the HLS IP to the block design in `overlay/v1.0/build.tcl`. Everything stays scripted.
+**Where:** Workbench · Vivado · Laptop workbench
+
+1. Add the scheduler, the mapping block and the HLS IP to the block design in `overlay/v1.0/build.tcl`, written in the workbench and run in the laptop workbench. Everything stays scripted.
 2. **Re-allocate the single ILA core.** The Basic tier allows only one, so it moves from W6's bus signals to the scheduler: probe 0 `{loop_tick, dir_follower, dir_leader}` as the trigger, probe 1 the scheduler state, probe 2 the iteration counter, probe 3 the overrun counter, probe 4 the joint currently being read. Keep W6's allocation in a Tcl variable so you can switch back with one line when you need to debug the bus again. You will want it in S5.
 3. Constrain the **loop-tick GPIO** to a Pmod pin for the scope. This pin is your primary instrument for the week.
 4. Build. Re-run the timing and utilisation reports and **compare with W6's numbers** — the design has grown by a scheduler, a mapping block and an HLS kernel, so the interesting figure is the delta. Archive it against the commit hash as before.
@@ -2446,6 +2649,8 @@ The safety chain gets tested **before** any servo is connected. Testing it after
 **Done when:** `overlay/v1.0` builds with positive WNS, and the utilisation delta from W6 is recorded.
 
 #### S5 · Saturday: bring it up, then measure the claim (4 h)
+
+**Where:** Bench · PYNQ Jupyter · Workbench
 
 1. **Bring up incrementally**, using the per-joint enable from S2. Rail check first, arms clear, hand near the e-stop.
    - Scheduler enabled, **all joints disabled**: confirm the loop tick on the scope at the expected period, and confirm the leader reads are happening on the bus, with nothing being commanded.
@@ -2474,6 +2679,8 @@ Every cell filled from a measurement, each with its capture file named.
 **Done when:** the three-path table is complete, including the under-load column, and the jitter screenshot is saved.
 
 #### S6 · Extra block: the video stretch, or the write-up (2 h)
+
+**Where:** Vitis HLS · Vivado · Workbench. The stretch needs the Xilinx tools; the write-up does not.
 
 Take the stretch only if S5 finished cleanly. The write-up is not optional.
 
@@ -2531,7 +2738,9 @@ Take the stretch only if S5 finished cleanly. The write-up is not optional.
 
 #### S1 · The pytest harness and instrument fixtures (2 h)
 
-1. Build `test/bench/conftest.py` with session-scoped fixtures, in the same shape as your RF ATE sessions:
+**Where:** Workbench · PYNQ Jupyter. Write the harness in the workbench; it runs where the overlay is, on the board, over SSH.
+
+1. Build `test/bench/conftest.py` in the workbench with session-scoped fixtures, in the same shape as your RF ATE sessions. The suite runs on the board, where the overlay is: copy it over with `scp` and run `pytest` over SSH from the workbench terminal. The OBSBOT is on the laptop, so the optical measurements in S2–S5 run in the laptop workbench and meet the board's data through the repo.
 
 ```python
 import pytest, datetime, pathlib, pyvisa
@@ -2571,6 +2780,8 @@ def arm(psu_12v, psu_5v):
 **Done when:** `pytest test/bench -k smoke` runs, powers up, records identity, powers down, and leaves a timestamped directory with a log.
 
 #### S2 · The optical instrument: calibration and pose (2 h)
+
+**Where:** Laptop workbench · Bench. The OBSBOT plugs into the laptop.
 
 An uncalibrated camera is not an instrument. Do this properly or the "independent measurement" claim collapses.
 
@@ -2617,6 +2828,8 @@ ok, rvec, tvec = cv2.solvePnP(obj, corners[0], K, dist, flags=cv2.SOLVEPNP_IPPE_
 
 #### S3 · Per-joint tests, part one: repeatability and backlash (2 h)
 
+**Where:** Laptop workbench · PYNQ Jupyter · Bench
+
 **Test the vendor's claims, not just the servo.** Hiwonder specifies the HX-30HM with a 12-bit magnetic encoder, **0.3° accuracy**, and describes it as **zero backlash**. Write those three claims at the top of the report and make this week's data answer each one directly, with the optical instrument as the referee. A characterisation report that confirms or refutes a datasheet claim with independent evidence is exactly the kind of artifact a senior reviewer remembers.
 
 1. **Resolution reference.** 4096 counts over 360° is 0.088° per count. Referred to the gripper at radius `r`, one count is `r · 0.088° · π/180`. Compute it for your arm — it is the yardstick every repeatability number is judged against.
@@ -2643,6 +2856,8 @@ Report **standard deviation and 3σ**, in counts, in degrees, and in millimetres
 
 #### S4 · Per-joint tests, part two: dynamics, current, temperature, bus health (2 h)
 
+**Where:** Laptop workbench · PYNQ Jupyter · Bench
+
 1. **Record the servo's motion profile first.** HX servos shape every move with their own Accel and Speed parameters. Read and record both for every joint before any dynamic test, and hold them fixed for the whole campaign — a step response is meaningless without the profile that produced it. Run the step tests twice: once at the kit's settings, once at the fastest profile the servo allows, so you can separate the servo's control loop from its trajectory generator.
 2. **Step response.** Reconfigure the scheduler to read a **single** joint every iteration, giving you 250 Hz sampling on that joint rather than the round-robin's 42 Hz. This is exactly why the scheduler's read target is a register, and it is worth noting in the report as a design decision that paid off.
    - Command a step of a defined size, log position at 250 Hz, then compute **10–90 % rise time**, **overshoot %**, and **settling time to ±2 %**.
@@ -2655,6 +2870,8 @@ Report **standard deviation and 3σ**, in counts, in degrees, and in millimetres
 **Done when:** all five test types run on joint 1 and produce CSVs with pass/fail evaluated against requirements.
 
 #### S5 · Saturday: teleop tracking, the full campaign, and the datasheet (4 h)
+
+**Where:** Laptop workbench · PYNQ Jupyter · Workbench
 
 1. **Teleop tracking test.** Move the leader through a defined trajectory — ideally a repeatable one, so drive the *leader* from a recording rather than by hand if you can. Log leader position and follower position at the loop rate, then compute:
    - **Tracking error** over time: RMS and maximum, per joint
@@ -2725,6 +2942,8 @@ Report **standard deviation and 3σ**, in counts, in degrees, and in millimetres
 
 #### S1 · The FMEA (2 h)
 
+**Where:** Workbench
+
 1. Build the table in `docs/fmea.md` (or a spreadsheet, committed as CSV so it diffs). One row per failure mode, with columns: item, function, failure mode, local effect, system effect, **severity (1–10)**, cause, **occurrence (1–10)**, current detection, **detection (1–10)**, **RPN = S×O×D**, mitigation, and post-mitigation RPN.
 2. Cover the whole system, not just the board. Seed with these and expand:
 
@@ -2752,16 +2971,20 @@ Report **standard deviation and 3σ**, in counts, in degrees, and in millimetres
 
 #### S2 · Implement the trips, part one: current and watchdog (2 h)
 
+**Where:** Workbench · Vivado
+
 1. **Over-current trip.** The INA226 `ALERT` pin, configured with an over-limit threshold, drives a PL input that opens the follower load switch. Two things to decide and record:
    - The **threshold**, from the W2 and W11 current data: above the legitimate worst case with margin, below anything that damages a servo.
    - The **conversion time and averaging**, which set the trip latency. More averaging is quieter and slower. Compute the expected latency from the datasheet's conversion time and your averaging setting, then measure it in S4 and compare.
-2. Implement the PL side: latch the trip, open the switch, set a status bit, and require an **explicit PS acknowledgement to re-arm**. A trip that clears itself is a trip that hides a recurring fault.
+2. Implement the PL side in the workbench, with a cocotb test for each behaviour before you build it in Vivado: latch the trip, open the switch, set a status bit, and require an **explicit PS acknowledgement to re-arm**. A trip that clears itself is a trip that hides a recurring fault.
 3. **Watchdog** kicked by the PS: a register the PS must write within a timeout, whose expiry stops the PL's watchdog toggle and therefore drops both rails via the hardware chain from W7. Note the two-stage structure — PS feeds PL, PL feeds hardware — and that each stage fails safe independently. That layering is worth a diagram in the architecture document.
 4. Set the PS-to-PL timeout from a real number: how long can the PS legitimately be busy? Use the jitter you measured under load in W10 S5, with margin.
 
 **Done when:** both trips are implemented, latched, and require an explicit re-arm.
 
 #### S3 · Implement the trips, part two: leader silence and servo heartbeat (2 h)
+
+**Where:** Workbench · Vivado · Windows desktop. ServoStudio is on the desktop; your own driver works from the laptop workbench once W3 covers the registers.
 
 1. **Leader-silence detector.** If leader reads stop arriving — cable pulled, servo dead, bus shorted — the follower must not keep tracking a stale position. Two stages:
    - **Freeze** immediately: hold the current follower goal, stop applying new leader input. Target within 50 ms per REQ-022.
@@ -2778,18 +3001,22 @@ Report **standard deviation and 3σ**, in counts, in degrees, and in millimetres
 
 #### S4 · Fault injection, part one (2 h)
 
+**Where:** Bench · PYNQ Jupyter
+
 Every injection follows the same four-step procedure, and each produces one number.
 
 > **Procedure:** (1) arms clear, e-stop within reach; (2) scope armed on the relevant signal — usually the switched rail, or the follower bus; (3) inject the fault; (4) measure the time from the fault to the defined response, and record it against the requirement.
 
 1. **Pull the leader cable mid-move.** Scope the follower bus. Measure: last leader read → follower freeze (no new goals). Then measure freeze → torque drop. Against REQ-022.
 2. **Pull the follower cable mid-move.** Measure what the system detects and how fast. Note that the follower servos now hold their last goal with no way to command them — write down what that means and whether it is acceptable.
-3. **Kill the Jupyter kernel** during teleop. This is the PS-crash proxy. Two things to observe: does the PL loop keep running (it should — that is the whole claim), and does the PS watchdog fire and drop the rails as designed? Both are correct behaviours and you need to state which you *want*. If the PL loop is self-sufficient, should a PS crash really drop the rails? Argue it, decide, and configure accordingly.
+3. **Kill the Jupyter kernel** during teleop, with `kill -9` on the kernel's process over SSH from the workbench terminal. This is the PS-crash proxy. Two things to observe: does the PL loop keep running (it should — that is the whole claim), and does the PS watchdog fire and drop the rails as designed? Both are correct behaviours and you need to state which you *want*. If the PL loop is self-sufficient, should a PS crash really drop the rails? Argue it, decide, and configure accordingly.
 4. **Force a current trip** by lowering the threshold in software until normal motion trips it. Measure fault-to-rail-off on the scope. Compare against the latency you computed from the INA226's conversion time in S2. A measured value well above your computed one means your averaging setting is not what you think.
 
 **Done when:** four faults injected, each with a measured reaction time recorded against its requirement.
 
 #### S5 · Saturday: the rest of the injections, and the write-up (4 h)
+
+**Where:** Bench · PYNQ Jupyter · Workbench
 
 1. **E-stop during a stall.** The worst realistic case: the arm pushing hard, maximum current, then the e-stop. Measure both rails' fall time under load and compare with W9's unloaded measurement. Loaded fall times are longer, and this is the number that actually matters.
 2. **Brown-out.** Ramp the supply down slowly and observe what the servos do as the rail falls. Find the voltage at which behaviour becomes unpredictable. This tells you whether you need an under-voltage lockout, which may be a rev-B item.
@@ -2847,6 +3074,8 @@ Every injection follows the same four-step procedure, and each produces one numb
 
 #### S1 · Assemble the package and make the repo navigable (2 h)
 
+**Where:** Workbench
+
 1. Collect the design package into a coherent order, with `docs/README.md` as its index:
 
 | # | Document | Answers |
@@ -2867,11 +3096,13 @@ Every injection follows the same four-step procedure, and each produces one numb
 
 2. Write the **top-level README** for a stranger, not for yourself: what this is, one photograph of the working system, the headline results as a short table, the repo map, and how to rebuild. Put the headline numbers in the first screen — latency versus baseline, loop jitter, repeatability, safety reaction times. Someone scanning for thirty seconds should get the result.
 3. Write `docs/lessons-learned.md` from the Sunday logs you have been keeping since R1, and reread `ramp/gate0.md` first — the distance between that half-page and where you are now is a story in itself. Structure it as: what went as planned, what did not, what you would change in the schedule, and the three things you learned that you did not expect to. Honest entries beat polished ones.
-4. **Test the navigation.** Open the repo in a fresh browser window and try to answer three questions using only the links: *What is the teleop latency? Why four layers? What happens if the leader cable is pulled?* If any takes more than two clicks, fix the index.
+4. **Test the navigation.** Open the repo on GitHub in a fresh browser window and try to answer three questions using only the links: *What is the teleop latency? Why four layers? What happens if the leader cable is pulled?* If any takes more than two clicks, fix the index.
 
 **Done when:** the three-question navigation test passes.
 
 #### S2 · Build the review deck (2 h)
+
+**Where:** Workbench
 
 Twenty minutes, roughly 15–18 slides. Structure it the way a review board expects, which is not the way you built it:
 
@@ -2889,6 +3120,8 @@ Two rules: **every claim carries its number**, and **every number names where it
 
 #### S3 · Record the talk (2 h)
 
+**Where:** Laptop. Screen and voice recording.
+
 1. Record a full twenty-minute run-through, screen plus voice. Do not stop to fix mistakes on the first take.
 2. Watch it back with a timer and a notepad. Look for: sections that ran long, claims you made without the number, places you said "basically" or "kind of", and any slide where you had to apologise for the content.
 3. Cut ruthlessly and record a second take. Two takes is the right number — a third is polish, and polish is not what this artifact is for.
@@ -2897,6 +3130,8 @@ Two rules: **every claim carries its number**, and **every number names where it
 **Done when:** a clean twenty-minute recording is linked from the top-level README.
 
 #### S4 · STAR stories and the grilling (2 h)
+
+**Where:** Workbench
 
 1. Write ten STAR stories in `docs/star-stories.md` — Situation, Task, Action, Result, with the **Result carrying a number**. Cover at least:
    - A trade-off you made (PS versus PL, or INA226 versus XADC)
@@ -2917,6 +3152,8 @@ Two rules: **every claim carries its number**, and **every number names where it
 
 #### S5 · Saturday: the LeRobot stretch, or consolidation (4 h)
 
+**Where:** Laptop workbench · Windows desktop. Record on the laptop, train on the desktop, run inference back on the laptop.
+
 Take the stretch if the package is complete. If anything above is unfinished, finish it first — a complete package beats an incomplete package with a policy demo bolted on.
 
 1. **Record a dataset with your hardware teleop loop**, the kit's wrist and external cameras both streaming MJPEG through the powered hub (the external camera at 640×480 on the board, per W4), using the LeRobot recording tools pointed at your overlay. Record enough episodes of one simple task to train something — a pick-and-place is the usual choice.
@@ -2926,7 +3163,7 @@ Take the stretch if the package is complete. If anything above is unfinished, fi
    - **No code changes are needed.** ROCm's PyTorch answers to the `torch.cuda` API, so LeRobot's `device=cuda` setting runs on the Radeon as-is. An ACT fine-tune of this size has been reported at about 4 GB of VRAM, comfortably inside the card's 16 GB.
    - **If a LeRobot dependency misbehaves on ROCm** (video decoding is the most likely candidate), check LeRobot's options for an alternative backend before debugging the dependency itself, and record what you changed.
    - **Fallbacks, in order:** ROCm PyTorch on Windows; a rented cloud GPU for an afternoon (the dataset is small, so this costs little); CPU training at a reduced step count for a proof-of-concept policy. Whichever you use, copy the dataset across and pin the same LeRobot version on both machines.
-3. **Run inference on the laptop with your overlay as the actuator backend** over the network. The PS is back in the loop here by necessity, which is exactly why W10 measured the waypoint-to-bus-byte latency — you know what that costs, and you can state it.
+3. **Run inference in the laptop workbench with your overlay as the actuator backend** over the network. The PS is back in the loop here by necessity, which is exactly why W10 measured the waypoint-to-bus-byte latency — you know what that costs, and you can state it.
 4. **Write the note that makes this interesting**, `docs/policy-note.md`: what did the deterministic loop change about the recorded data? Hypotheses worth testing against your own recordings:
    - Timestamp jitter in the dataset should be much lower, since the actions were applied on a hardware schedule rather than a Python one.
    - Action-to-observation alignment should be tighter and more consistent.
@@ -3005,7 +3242,8 @@ What a senior hardware role is usually screened for, and where each week exercis
 | Power resistors as dummy loads | W7 | Over-voltage cutoff testing without risking servos. |
 | Thermal camera or IR thermometer | W9 | Optional but makes the bring-up report far stronger. |
 | Calipers | W0 | For the 5264 connector pitch and the marker size. Both matter more than they sound. |
-| Dedicated Linux laptop (Ubuntu LTS), ≥ 16 GB RAM, ≥ 200 GB free SSD, Ethernet or USB-Ethernet | W0 | Primary host for everything except ServoStudio. |
+| Unraid server running the workbench container | W0 | Primary workspace: editor, terminal, Python, simulation, tests, documents, git. Reached from any browser. |
+| Dedicated Linux laptop (Ubuntu LTS), ≥ 16 GB RAM, ≥ 200 GB free SSD, Ethernet or USB-Ethernet | W0 | Vivado, Vitis HLS, KiCad, and everything on USB, through the laptop workbench. |
 | Windows desktop, Radeon RX 9070 XT, plus an Ubuntu dual-boot partition | W2, W4, W13 | ServoStudio on Windows; ACT training on Ubuntu with ROCm; fallback host (needs its own Vivado license). |
 | Vivado + Vitis 2026.1 (Basic tier), KiCad 8+, cocotb, Verilator or Icarus, pytest, pyvisa + pyvisa-py, OpenCV | W0 | Basic is free, covers the 7Z020, runs on Linux; node-locked, renewed yearly; one ILA core, five probes. |
 
@@ -3077,7 +3315,9 @@ Questions a senior panel would ask about this exact project. Each should be answ
 |---|---|---|
 | Vivado Basic license lapses or stops matching the laptop | Renewal date approaching; network adapter changed | Renew a month early; regenerate the node-locked license if the host ID changes. Without a valid license you cannot open the designs. |
 | Policy training fails on the Radeon | W4 smoke test fails, or a LeRobot update breaks ROCm | Pin the working versions from W4; fall back to ROCm on Windows, then a rented cloud GPU for one afternoon. |
-| Laptop fails mid-project | Any hardware fault | Everything is in git; the Windows desktop is the fallback host, with the rebuild steps in `docs/toolchain.md`. |
+| Laptop fails mid-project | Any hardware fault | Everything is in git and the server workbench carries on with code, simulation and documents; the Windows desktop is the fallback for Vivado and USB work, with the rebuild steps in `docs/toolchain.md`. |
+| Server workbench down | Unraid offline, or the container won't start | Run the laptop workbench for that session; `docs/toolchain.md` and `app/workbench/README.md` have the rebuild steps. Push before you switch so neither copy is behind. |
+| Server and laptop copies drift | A push forgotten at the end of a session; a merge conflict on `git pull` | Pull at the start and push at the end of every session. On a conflict in `.study/progress.json`, keep both sets of ticks. |
 | Gate 0 finds real gaps | Six or fewer Gate 0 passes | Take one extra ramp-up week from the holiday buffer. Do not start W1 unready. |
 | Ramp-up runs slow | Any R week not closed by Sunday | Finish it the following Monday, and compress W0 installs; do not skip the cocotb or AXI-Lite sessions — they are what W5 and W6 stand on. |
 | PCB fab and assembly take longer than the holiday buffer | Boards not in hand by Mon 4 Jan | Swap W9 and W10. The hardware teleop loop runs fine on the breadboard buffers; bring-up waits for the board. |
@@ -3089,7 +3329,7 @@ Questions a senior panel would ask about this exact project. Each should be answ
 | Hiwonder's LeRobot support depends on a vendor fork that drifts | W2 finds a fork, or W13 finds it broken | Pin the version in `requirements.txt` in W2; your own `sw/hx_min` is the fallback actuator backend for W13. |
 | Leader and follower cables swapped | Any occurrence | Silkscreen and cable flags in W7; the driver's model check refuses torque. |
 | RTL takes longer than one week | W5 S5 not green by Saturday | Borrow from W7 by prototyping the shield with breakout boards. Do not skip the cocotb suite; it is the senior-level part of W5. |
-| Bench time squeezed by work | Two consecutive weeks under 8 h | Protect W4, W7 and W13. They are mostly writing and can be done anywhere, and they carry the most interview weight. |
+| Bench time squeezed by work | Two consecutive weeks under 8 h | Protect W4, W7 and W13. W4 and W13 are mostly writing and can be done from any browser through the workbench, and they carry the most interview weight. |
 | A servo is damaged in stall testing | Any servo running hot to the touch | Keep stall tests under two seconds behind the supply current limit, do destructive and protection tests on the spare HX-30HM and HX-10HM, not the arms. Stop for the evening. |
 | Bring-up finds a blocking design fault | Rev-A unusable for a required measurement | Fall back to the breadboard path for W10 and W11; W12's hardware trips are the only work genuinely blocked. Re-order rather than wait. |
 
@@ -3224,4 +3464,4 @@ The last two lines matter most. The first-session prompt removes the cost of res
 
 ---
 
-*Plan drafted 10 September 2026; expanded to step-by-step detail; revised 21 September 2026 for the Hiwonder kit and a five-week Python and Verilog ramp-up, running 21 September 2026 to 7 February 2027. Toolchain: PYNQ v3.1.1 (2024.1 baseline) with Vivado 2026.1. Written for the Hiwonder SO-ARM101 kit (HX-30HM follower, HX-10HM leader, BusLinker V3.0). Register addresses and packet formats come only from Hiwonder's protocol document, confirmed on the wire in W3 against your servo firmware versions; this plan deliberately names none. Pin assignments are always taken from the PYNQ-Z2 master XDC, never from this document.*
+*Plan drafted 10 September 2026; expanded to step-by-step detail; revised 21 September 2026 for the Hiwonder kit and a five-week Python and Verilog ramp-up, running 21 September 2026 to 7 February 2027. Revised 12 October 2026 for the workbench: every session names where it runs, and the steps use the server workbench for code, simulation and documents, with the laptop kept for Vivado, KiCad and USB hardware. Toolchain: PYNQ v3.1.1 (2024.1 baseline) with Vivado 2026.1. Written for the Hiwonder SO-ARM101 kit (HX-30HM follower, HX-10HM leader, BusLinker V3.0). Register addresses and packet formats come only from Hiwonder's protocol document, confirmed on the wire in W3 against your servo firmware versions; this plan deliberately names none. Pin assignments are always taken from the PYNQ-Z2 master XDC, never from this document.*
