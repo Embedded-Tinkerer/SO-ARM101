@@ -20,39 +20,43 @@ The workbench runs commands on the machine that hosts it.
 
 ## On the Unraid server
 
-1. **Get the repo onto the array.** In the Unraid terminal:
+These steps use a shell variable for the repo's location so you only type it once. Set it to wherever the repo lives on the array. Share names are case-sensitive: a share shown as `Media` over SMB is `/mnt/user/Media`. To find a copy you already made, run `find /mnt/user -maxdepth 3 -type d -name arm-on-zynq`.
+
+1. **Get the repo onto the array.** In the Unraid terminal, either clone it (recommended, so you can pull and push from the workbench):
 
    ```bash
-   mkdir -p /mnt/user/projects /mnt/user/appdata/arm-workbench
-   git clone https://github.com/Embedded-Tinkerer/SO-ARM101.git -b master /mnt/user/projects/arm-on-zynq
-   chown -R 99:100 /mnt/user/projects/arm-on-zynq /mnt/user/appdata/arm-workbench
+   REPO=/mnt/user/Media/arm-on-zynq
+   git clone https://github.com/Embedded-Tinkerer/SO-ARM101.git -b master "$REPO"
    ```
 
-2. **Set a password.** Create `app/workbench/.env` (it's git-ignored):
+   or copy your laptop's `arm-on-zynq` folder to the share (skip `.venv` if the copy complains about symlinks; the container has its own Python). Then hand both folders to Unraid's default user:
 
    ```bash
-   cd /mnt/user/projects/arm-on-zynq/app/workbench
+   mkdir -p /mnt/user/appdata/arm-workbench
+   chown -R 99:100 "$REPO" /mnt/user/appdata/arm-workbench
+   ```
+
+2. **Set a password.** This writes `app/workbench/.env` (git-ignored):
+
+   ```bash
+   cd "$REPO/app/workbench"
    printf 'WORKBENCH_PASSWORD=%s\nWORKBENCH_SECRET=%s\n' 'choose-a-long-password' "$(head -c 32 /dev/urandom | base64)" > .env
    chown 99:100 .env && chmod 600 .env
    ```
 
-3. **Build and start it.** With the Docker Compose Manager plugin, or from the terminal:
+3. **Build and start it.** Unraid ships plain Docker, so:
 
    ```bash
-   docker compose -f /mnt/user/projects/arm-on-zynq/app/workbench/docker-compose.yml up -d --build
-   ```
-
-   Without Compose:
-
-   ```bash
-   cd /mnt/user/projects/arm-on-zynq/app/workbench
+   cd "$REPO/app/workbench"
    docker build -t arm-workbench .
    docker run -d --name arm-workbench --restart unless-stopped --user 99:100 --env-file .env \
-     -v /mnt/user/projects/arm-on-zynq:/workspace -v /mnt/user/appdata/arm-workbench:/config \
+     -v "$REPO":/workspace -v /mnt/user/appdata/arm-workbench:/config \
      -p 8095:8080 arm-workbench
    ```
 
-   Open `http://UNRAID_IP:8095` on your LAN to check it works before adding the domain.
+   The first build takes a few minutes. Open `http://UNRAID_IP:8095` on your LAN to check it works before adding the domain. If you installed the Docker Compose Manager plugin, `docker compose up -d --build` does the same, after you set the first volume in `docker-compose.yml` to your `$REPO` path.
+
+   It also appears on Unraid's **Docker** tab, where you can start, stop and view its logs. The container won't have an Unraid template icon, which is fine.
 
 4. **Let git push from the workbench.** In the workbench terminal:
 
@@ -64,9 +68,13 @@ The workbench runs commands on the machine that hosts it.
    git remote set-url origin git@github.com:Embedded-Tinkerer/SO-ARM101.git
    ```
 
+   If you copied the folder from your laptop instead of cloning, the remote is called `SO-ARM101` rather than `origin`: use `git remote set-url SO-ARM101 …` instead.
+
    The key lives in `/mnt/user/appdata/arm-workbench/.ssh`, so it survives rebuilds. Add the same public key to the PYNQ's `~/.ssh/authorized_keys` to SSH to the board from the workbench.
 
-**Updating:** `git pull` in the workbench terminal updates the plan and the app. Restart the container (`docker restart arm-workbench`) after pulling changes to `app/workbench/server.py`. Rebuild (`up -d --build`) only when the `Dockerfile` changes.
+**Updating:** `git pull` in the workbench terminal updates the plan and the app. Restart the container (`docker restart arm-workbench`) after pulling changes to `app/workbench/server.py`. When the `Dockerfile` changes, rebuild: `docker build -t arm-workbench .`, then `docker rm -f arm-workbench` and the same `docker run` command as above.
+
+**If it won't start:** `docker logs arm-workbench` shows why. "Set WORKBENCH_PASSWORD" means the `.env` file wasn't found or is empty; "Permission denied" on `/workspace` or `/config` means the `chown` step was skipped.
 
 ## Pointing your domain at it
 

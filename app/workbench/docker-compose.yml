@@ -1,4 +1,5 @@
-# Unraid: put the repo at /mnt/user/projects/arm-on-zynq (or change the path below),
+# Needs the Docker Compose Manager plugin on Unraid; plain `docker build` + `docker run` (README) works without it.
+# Set the first volume below to where the repo lives, e.g. /mnt/user/Media/arm-on-zynq,
 # put WORKBENCH_PASSWORD in a .env file next to this one, then:
 #   docker compose -f app/workbench/docker-compose.yml up -d --build
 services:
