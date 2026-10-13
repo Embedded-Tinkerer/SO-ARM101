@@ -76,6 +76,25 @@ These steps use a shell variable for the repo's location so you only type it onc
 
 **If it won't start:** `docker logs arm-workbench` shows why. "Set WORKBENCH_PASSWORD" means the `.env` file wasn't found or is empty; "Permission denied" on `/workspace` or `/config` means the `chown` step was skipped.
 
+## Install it as an app on your phone
+
+The workbench can be installed from Chrome like an app: its own icon, its own window, no address bar. On a Pixel, open the workbench in Chrome, then **⋮ → Add to home screen → Install**. Desktop Chrome works the same way, from the install icon at the right of the address bar.
+
+Chrome only offers a real install over **HTTPS**. Over `http://100.87.74.50:8095` you get a plain shortcut that opens in a browser tab. Two ways to get HTTPS:
+
+- **Tailscale (recommended, stays private).** The server is already on your tailnet. In the Tailscale admin console, under **DNS**, turn on MagicDNS and **HTTPS Certificates**. Then in the Unraid terminal:
+
+  ```bash
+  tailscale serve --bg --https=8443 http://127.0.0.1:8095
+  tailscale serve status      # prints the https://<server>.<your-tailnet>.ts.net:8443 address
+  ```
+
+  Open that address in Chrome on the phone, with the Tailscale app connected, and install from there.
+
+- **Your own domain** through nginx with a Let's Encrypt certificate, as in "Pointing your domain at it" below.
+
+The installed app is the live workbench, not an offline copy, so it needs to reach the server. When it can't, it shows a short "Workbench unreachable" page instead of Chrome's error screen. On a narrow screen the code pane covers the plan; the **Code** button switches between them.
+
 ## Pointing your domain at it
 
 `nginx.conf` is a complete site file: replace `arm.example.com`, the certificate paths and `UNRAID_IP`. The `Upgrade` and `Connection` headers are what make the terminal work through the proxy. On nginx older than 1.25, change `listen 443 ssl;` + `http2 on;` to `listen 443 ssl http2;`.
@@ -101,5 +120,6 @@ Open <http://127.0.0.1:8080>. `--no-auth` only works on 127.0.0.1, so nothing el
 
 - `server.py`: the server (aiohttp). Serves the study page built from `captone.md`, the file API, the terminal websocket and the login.
 - `static/workbench.js`, `static/workbench.css`: the editor, terminal and file panes, and the plan-to-repo links.
+- `static/manifest.webmanifest`, `static/sw.js`, `static/icons/`: what Chrome needs to install the workbench as an app.
 - `vendor.py`: downloads Monaco 0.52.2 and xterm.js 5.5.0 into `vendor/` (git-ignored).
 - `Dockerfile`, `docker-compose.yml`, `nginx.conf`: the Unraid deployment.
