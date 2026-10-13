@@ -60,7 +60,7 @@
   extra.className = "wb-top";
   extra.innerHTML = `<span class="chip git" id="git-chip" title="git status">git …</span>
     <button class="icon-btn" id="code-toggle" type="button" aria-pressed="true">Code</button>
-    ${HOST.auth ? '<a class="icon-btn" href="/logout">Log out</a>' : ""}`;
+    ${HOST.auth ? '<a class="icon-btn logout" href="/logout" title="Log out" aria-label="Log out"><span class="lbl">Log out</span></a>' : ""}`;
   top.appendChild(extra);
 
   function setWidth(px) {

@@ -100,7 +100,7 @@ class Workbench:
 
     @web.middleware
     async def guard(self, request: web.Request, handler):
-        if request.path in ("/login", "/healthz"):
+        if request.path in PUBLIC or request.path.startswith("/icons/"):
             return await handler(request)
         if not self.authed(request):
             if request.path.startswith("/api/"):
@@ -161,8 +161,24 @@ class Workbench:
                 '<script src="/wb/workbench.js"></script>\n')
         doc = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+               + APP_HEAD +
                '</head>\n<body class="workbench">\n' + page + "\n" + tail + "</body>\n</html>\n")
         return web.Response(text=doc, content_type="text/html", headers={"Cache-Control": "no-store"})
+
+    async def app_file(self, request: web.Request) -> web.FileResponse:
+        """Manifest, service worker and icons: public, so Chrome can install the app before login."""
+        name = request.path.lstrip("/")
+        path = (HERE / "static" / name).resolve()
+        if path.parent not in (HERE / "static", HERE / "static" / "icons") or not path.is_file():
+            raise web.HTTPNotFound()
+        headers = {"Cache-Control": "no-cache"}
+        if name == "sw.js":
+            headers["Service-Worker-Allowed"] = "/"
+        ctype = "application/manifest+json" if name.endswith(".webmanifest") else None
+        resp = web.FileResponse(path, headers=headers)
+        if ctype:
+            resp.content_type = ctype
+        return resp
 
     async def asset(self, request: web.Request) -> web.FileResponse:
         name = request.match_info["name"]
@@ -345,6 +361,9 @@ class Workbench:
             web.post("/login", self.login),
             web.get("/logout", self.logout),
             web.get("/wb/{name}", self.asset),
+            web.get("/manifest.webmanifest", self.app_file),
+            web.get("/sw.js", self.app_file),
+            web.get("/icons/{name}", self.app_file),
             web.get("/api/progress", self.get_progress),
             web.put("/api/progress", self.put_progress),
             web.get("/api/tree", self.tree),
@@ -360,8 +379,18 @@ class Workbench:
         return a
 
 
+PUBLIC = {"/login", "/healthz", "/manifest.webmanifest", "/sw.js"}
+
+# Lets Chrome install the workbench as an app (on a phone, "Install app" in the menu).
+APP_HEAD = ('<link rel="manifest" href="/manifest.webmanifest">\n'
+            '<meta name="theme-color" content="#15212b">\n'
+            '<link rel="icon" href="/icons/icon-192.png">\n'
+            '<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">\n'
+            "<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(function(){});</script>\n")
+
 LOGIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>arm-on-zynq workbench</title>
+""" + APP_HEAD + """
 <style>
 :root{--bg:#f3f5f6;--panel:#fff;--ink:#15212b;--muted:#5b6b78;--line:#d9e0e5;--accent:#1c5bc4;--warn:#b3361f}
 @media (prefers-color-scheme:dark){:root{--bg:#0f151b;--panel:#161e26;--ink:#dde5eb;--muted:#93a3b0;--line:#26323d;--accent:#79a6ff;--warn:#ff8a73;color-scheme:dark}}
